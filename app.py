@@ -29,16 +29,21 @@ st.markdown(
     .brand-sub { font-size: 1.05rem; color: #5F7D3F; margin-bottom: 1.2rem; }
     .card { background: #ffffff; border: 1px solid #e3e2d6; border-radius: 14px;
             padding: 1.1rem 1.3rem; margin-top: 0.8rem; }
-    .verdict-ready   { border-left: 6px solid #425844; }
-    .verdict-cond    { border-left: 6px solid #b98a2e; }
-    .verdict-hard    { border-left: 6px solid #a1502f; }
-    .verdict-unknown { border-left: 6px solid #6b7280; }
+    .verdict-ready    { border-left: 6px solid #425844; }
+    .verdict-cond     { border-left: 6px solid #b98a2e; }
+    .verdict-hard     { border-left: 6px solid #a1502f; }
+    .verdict-toosoon  { border-left: 6px solid #50808e; }
+    .verdict-unknown  { border-left: 6px solid #6b7280; }
     .verdict-head { font-size: 1.25rem; font-weight: 600; color: #2b412e; margin-bottom: 0.3rem; }
     .plan-title { font-weight: 600; color: #425844; margin-top: 0.4rem; }
     .note { color: #6b7280; font-size: 0.9rem; }
-    .stButton>button { background: #425844; color: #f8f7f0; border: 0; border-radius: 10px;
-                       padding: 0.55rem 1.3rem; font-weight: 600; }
-    .stButton>button:hover { background: #2b412e; color: #ffffff; }
+    .stButton>button, .stFormSubmitButton>button,
+    div[data-testid="stFormSubmitButton"] button {
+        background: #425844; color: #f8f7f0; border: 0; border-radius: 10px;
+        padding: 0.55rem 1.3rem; font-weight: 600; }
+    .stButton>button:hover, .stFormSubmitButton>button:hover,
+    div[data-testid="stFormSubmitButton"] button:hover {
+        background: #2b412e; color: #ffffff; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -225,6 +230,7 @@ def get_team():
             "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
             "Delegate fact-finding to the Researcher and interpretation to the Analyst, then give one clear answer.",
             "Base every readiness verdict on readiness_score. Never compute or invent the verdict yourself.",
+            "Open with the exact verdict wording that readiness_score returns (for example, You're ready, or Too soon), then add context. Do not soften or reword the verdict itself.",
             "If the trail is unknown, refuse honestly and ask for verified data. Do not guess.",
             "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
             "Be warm, concise, and specific.",
@@ -253,7 +259,7 @@ with tab_form:
             options=[t["name"] for t in TRAILS.values()] + ["My trail isn't on the list"],
         )
         fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
-        weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8)
+        weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
         submitted = st.form_submit_button("Check my readiness")
 
     if submitted:
@@ -270,7 +276,7 @@ with tab_form:
             with st.spinner("Assessing your readiness..."):
                 r = assess(trail_choice, fitness, weeks)
             css = {"ready": "verdict-ready", "cond": "verdict-cond",
-                   "hard": "verdict-hard", "toosoon": "verdict-hard"}[r["status"]]
+                   "hard": "verdict-hard", "toosoon": "verdict-toosoon"}[r["status"]]
             plan_html = "".join(f"<li>{s}</li>" for s in r["plan"])
             st.markdown(
                 f'<div class="card {css}"><div class="verdict-head">{r["head"]}</div>'
@@ -312,17 +318,33 @@ with tab_chat:
                   "reasoning coordinator writes the final answer. The verdict still comes from "
                   "the deterministic tool. The team makes several model calls, so it is slower."),
         )
+        # On-brand chat avatars (hiking theme, matches the Icelandic-highlands palette)
+        AVATARS = {"user": "🥾", "assistant": "🏔️"}
+        EXAMPLES = [
+            "Am I ready for Laugavegur in 6 weeks? I don't train.",
+            "Besseggen in 8 weeks, I train regularly.",
+            "Trolltunga in 4 weeks, sometimes active.",
+        ]
         if "messages" not in st.session_state:
             st.session_state.messages = []
-        for m in st.session_state.messages:
-            st.chat_message(m["role"]).markdown(m["content"])
 
-        if prompt := st.chat_input("Ask BeReady about a trail..."):
+        example_prompt = None
+        if not st.session_state.messages:
+            st.caption("Try an example:")
+            for col, q in zip(st.columns(len(EXAMPLES)), EXAMPLES):
+                if col.button(q, key=f"ex_{q}"):
+                    example_prompt = q
+
+        for m in st.session_state.messages:
+            st.chat_message(m["role"], avatar=AVATARS[m["role"]]).markdown(m["content"])
+
+        prompt = st.chat_input("Ask BeReady about a trail...") or example_prompt
+        if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
-            st.chat_message("user").markdown(prompt)
+            st.chat_message("user", avatar=AVATARS["user"]).markdown(prompt)
             use_team = mode.startswith("Agent team")
             spinner_text = "The team is researching and reasoning..." if use_team else "Thinking..."
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar=AVATARS["assistant"]):
                 with st.spinner(spinner_text):
                     try:
                         runner = get_team() if use_team else get_agent()
