@@ -160,6 +160,82 @@ def get_agent():
     )
 
 
+@st.cache_resource(show_spinner=False)
+def get_team():
+    """A real multi-agent team: a Researcher who gathers verified facts, an Analyst who
+    interprets them, and a reasoning coordinator that enforces the honesty rules and writes
+    the final answer. Every readiness verdict still comes from the deterministic readiness_score
+    tool, so the team cannot hallucinate the number."""
+    from agno.agent import Agent
+    from agno.team import Team
+    from agno.models.google import Gemini
+    from agno.tools import tool
+
+    @tool
+    def readiness_score(query: str) -> str:
+        """Give an honest readiness verdict for a specific trail. Needs the trail name, the
+        person's training level, and how many weeks until the hike.
+
+        Args:
+            query: The user's question, including trail name, training level, and weeks.
+
+        Returns:
+            A readiness verdict and plan, or an honest refusal if the trail is unknown.
+        """
+        return readiness_from_text(query)
+
+    model = Gemini(id="gemini-3.5-flash-lite")
+
+    # The Researcher can check time-sensitive facts (season, closures) via web search.
+    # Optional: if the tool is unavailable, the team still works with readiness_score alone.
+    research_tools = [readiness_score]
+    try:
+        from agno.tools.duckduckgo import DuckDuckGoTools
+        research_tools.append(DuckDuckGoTools())
+    except Exception:
+        pass
+
+    researcher = Agent(
+        name="Researcher",
+        role="Gather verified facts",
+        model=model,
+        tools=research_tools,
+        instructions=[
+            "Collect only verified facts for the question.",
+            "For readiness, call readiness_score with the trail, training level, and weeks.",
+            "You may web-search only for time-sensitive facts, such as whether a trail is open this season.",
+            "Never invent trail data. If the trail is unknown to readiness_score, report that honestly.",
+        ],
+    )
+    analyst = Agent(
+        name="Analyst",
+        role="Interpret and frame",
+        model=model,
+        instructions=[
+            "Turn the Researcher's facts into a clear, honest recommendation.",
+            "Separate facts from interpretation. Do not invent numbers or trail data.",
+        ],
+    )
+    return Team(
+        name="BeReady team",
+        members=[researcher, analyst],
+        model=model,
+        tools=[readiness_score],
+        instructions=[
+            "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
+            "Delegate fact-finding to the Researcher and interpretation to the Analyst, then give one clear answer.",
+            "Base every readiness verdict on readiness_score. Never compute or invent the verdict yourself.",
+            "If the trail is unknown, refuse honestly and ask for verified data. Do not guess.",
+            "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
+            "Be warm, concise, and specific.",
+        ],
+        markdown=True,
+        retries=3,
+        delay_between_retries=8,
+        exponential_backoff=True,
+    )
+
+
 # ---------- Header ----------
 st.markdown('<div class="brand-title">BeReady</div>', unsafe_allow_html=True)
 st.markdown(
@@ -227,6 +303,15 @@ with tab_chat:
     else:
         os.environ["GOOGLE_API_KEY"] = api_key
         st.caption("Ask in your own words, for example: Am I ready for Laugavegur in 6 weeks if I don't train?")
+        mode = st.radio(
+            "Answer mode",
+            ["Single agent (fast)", "Agent team (Researcher, Analyst, Reasoning)"],
+            horizontal=True,
+            help=("Single agent: one Gemini agent with the deterministic readiness tool. "
+                  "Agent team: a Researcher gathers facts, an Analyst interprets them, and a "
+                  "reasoning coordinator writes the final answer. The verdict still comes from "
+                  "the deterministic tool. The team makes several model calls, so it is slower."),
+        )
         if "messages" not in st.session_state:
             st.session_state.messages = []
         for m in st.session_state.messages:
@@ -235,11 +320,13 @@ with tab_chat:
         if prompt := st.chat_input("Ask BeReady about a trail..."):
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.chat_message("user").markdown(prompt)
+            use_team = mode.startswith("Agent team")
+            spinner_text = "The team is researching and reasoning..." if use_team else "Thinking..."
             with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
+                with st.spinner(spinner_text):
                     try:
-                        agent = get_agent()
-                        resp = agent.run(prompt)
+                        runner = get_team() if use_team else get_agent()
+                        resp = runner.run(prompt)
                         answer = getattr(resp, "content", None) or str(resp)
                     except Exception as e:
                         answer = ("Something went wrong reaching the model. This is usually the free-tier "

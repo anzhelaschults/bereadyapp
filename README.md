@@ -21,7 +21,7 @@ Most AI assistants are happy to sound confident about anything. For a product th
 ## How the AI is designed
 
 - **Deterministic readiness tool.** The core logic (`readiness_score` / `readiness_from_text`) takes the trail, fitness level, and time available and returns a verdict plus a plan. Typed inputs, a clear docstring, no model in the loop for the number itself.
-- **Multi-agent stack in Agno.** A tool-using agent web-searches only time-sensitive facts, such as whether a trail is open this season. A researcher and analyst team separates finding from framing. A reasoning agent handles the real dilemma, a trail missing from the database, and chooses to refuse and ask for verified data rather than guess.
+- **Two answer modes in the chat.** The default is a single Gemini agent with the deterministic readiness tool: fast, cheap, and reliable. A second mode runs a real Agno team of three agents, a Researcher that gathers verified facts (and can web-search time-sensitive ones such as whether a trail is open this season), an Analyst that interprets them, and a reasoning coordinator that writes the final answer. In both modes the verdict still comes only from the deterministic tool, so it cannot be hallucinated.
 - **A hard safety boundary.** Questions about injuries, pain, or medical conditions are routed to a clear "see a doctor" response, not a readiness score.
 - **Framework migration as a proof point.** The readiness tool was ported from LangChain to Agno almost unchanged. That showed the framework is a wrapper, and the real product lives in the tool, the prompt, and the data.
 
@@ -37,7 +37,7 @@ Most AI assistants are happy to sound confident about anything. For a product th
 The app has two modes:
 
 - **Check readiness.** A deterministic form. Runs instantly, needs no API key, and cannot hallucinate.
-- **Ask BeReady.** A chat where a Gemini agent reads a free-form question and calls the same deterministic readiness tool. Needs a `GOOGLE_API_KEY`, the form works without one.
+- **Ask BeReady.** A chat with two answer modes. *Single agent*: one Gemini agent reads a free-form question and calls the same deterministic readiness tool. *Agent team*: a Researcher gathers facts, an Analyst interprets them, and a reasoning coordinator writes the final answer. Both need a `GOOGLE_API_KEY`; the form works without one. The single agent is the default because it does not depend on several model calls.
 
 This split means the core readiness check keeps working even with the model off.
 
