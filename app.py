@@ -170,8 +170,9 @@ def readiness_from_text(query: str) -> str:
                 "against your fitness once you're cleared to hike.")
     rec = next((t for k, t in TRAILS.items() if k in q), None)
     if rec is None:
-        return ("I don't have verified data for that trail, so I won't guess. Try one of Laugavegur, "
-                "Fimmvorduhals, Trolltunga, Besseggen, or Preikestolen, or give me its length and elevation gain.")
+        return ("I don't have verified data for that trail yet, so I'd rather say I don't know than "
+                "guess. Today I cover Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and "
+                "Preikestolen. Pick one of those for an honest verdict. More trails are coming.")
     if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner"]):
         fit = 1
     elif any(w in q for w in ["regularly", "every week", "often", "fit", "athletic", "train a lot"]):
@@ -326,27 +327,31 @@ tab_form, tab_chat = st.tabs(["Check readiness", "Ask BeReady"])
 # ---------- Tab 1: deterministic form ----------
 with tab_form:
     st.caption("Pick your trail and get an instant, honest verdict.")
-    with st.form("readiness"):
-        trail_choice = st.selectbox(
-            "Trail",
-            options=[t["name"] for t in TRAILS.values()] + ["My trail isn't on the list"],
-        )
-        fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
-        weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
-        submitted = st.form_submit_button("Check my readiness")
+    # Trail selector sits outside the form so an unknown trail can hide the rest
+    # immediately and show the honest refusal, without asking for fitness or weeks.
+    trail_choice = st.selectbox(
+        "Trail",
+        options=[t["name"] for t in TRAILS.values()] + ["My trail isn't on the list"],
+    )
 
-    if submitted:
-        if trail_choice == "My trail isn't on the list":
-            st.markdown(
-                '<div class="card verdict-unknown">'
-                '<div class="verdict-kicker">Honest refusal</div>'
-                '<div class="verdict-head">I don\'t know this trail yet</div>'
-                "I don't have verified data for it, so I won't guess at a verdict. "
-                "Pick a trail from the list, or send me its length and elevation gain and I'll add it."
-                "</div>",
-                unsafe_allow_html=True,
-            )
-        else:
+    if trail_choice == "My trail isn't on the list":
+        st.markdown(
+            '<div class="card verdict-unknown">'
+            '<div class="verdict-kicker">Honest refusal</div>'
+            '<div class="verdict-head">I don\'t know this trail yet</div>'
+            "I don't have verified data for it, so I'd rather say I don't know than guess. "
+            "Today I cover Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen, "
+            "pick one for an honest verdict. More trails are coming."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        with st.form("readiness"):
+            fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
+            weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
+            submitted = st.form_submit_button("Check my readiness")
+
+        if submitted:
             with st.spinner("Assessing your readiness..."):
                 r = assess(trail_choice, fitness, weeks)
             css = {"ready": "verdict-ready", "cond": "verdict-cond",
