@@ -73,13 +73,18 @@ st.markdown(
     .plan-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.35rem; color: #2e3a28; }
     .plan-list li:before { content: "\\2713"; position: absolute; left: 0; color: #425844; font-weight: 700; }
     .note { color: #6b7280; font-size: 0.9rem; }
-    .stButton>button, .stFormSubmitButton>button,
-    div[data-testid="stFormSubmitButton"] button {
+    /* primary action buttons (form submits: Check my readiness, Ask BeReady) */
+    .stFormSubmitButton>button, div[data-testid="stFormSubmitButton"] button {
         background: #425844; color: #f8f7f0; border: 0; border-radius: 10px;
         padding: 0.55rem 1.3rem; font-weight: 600; }
-    .stButton>button:hover, .stFormSubmitButton>button:hover,
-    div[data-testid="stFormSubmitButton"] button:hover {
+    .stFormSubmitButton>button:hover, div[data-testid="stFormSubmitButton"] button:hover {
         background: #2b412e; color: #ffffff; }
+    /* secondary buttons (example quick-asks): light outline chips, not solid */
+    .stButton>button {
+        background: #ffffff; color: #425844; border: 1px solid #cfd8c5; border-radius: 10px;
+        padding: 0.5rem 1.1rem; font-weight: 500; }
+    .stButton>button:hover {
+        background: #f2f4ec; color: #2b412e; border-color: #a9b79a; }
     /* chat tab: alert/info boxes match the palette instead of default blue */
     div[data-testid="stAlert"] { background: #eef2e8; border: 1px solid #dfe5d6;
         border-radius: 12px; }
