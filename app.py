@@ -89,16 +89,15 @@ st.markdown(
         border-radius: 14px; box-shadow: 0 4px 16px rgba(43,65,46,0.05); }
     .honest-note { color: #5F7D3F; font-size: 0.82rem; margin: 0.2rem 0 0.6rem 0; }
     /* make the two modes read as a segmented control, not faint text tabs */
-    div[data-baseweb="tab-list"] { gap: 6px; background: #eceee4; padding: 5px;
-        border-radius: 12px; display: inline-flex; margin-bottom: 0.7rem; }
-    button[data-baseweb="tab"] { height: auto; padding: 0.45rem 1.15rem; border-radius: 9px;
-        color: #6b7280; }
-    button[data-baseweb="tab"] p { font-weight: 600; margin: 0; }
-    button[data-baseweb="tab"][aria-selected="true"] { background: #425844; }
-    button[data-baseweb="tab"][aria-selected="true"] p { color: #f8f7f0; }
-    button[data-baseweb="tab"]:hover p { color: #2b412e; }
-    button[data-baseweb="tab"][aria-selected="true"]:hover p { color: #f8f7f0; }
-    div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] { display: none; }
+    div[role="tablist"] { gap: 6px; background: #eceee4; padding: 5px; border-radius: 12px;
+        display: inline-flex; border-bottom: none; margin-bottom: 0.7rem; }
+    [data-testid="stTab"] { padding: 0.45rem 1.15rem !important; border-radius: 9px;
+        color: #6b7280 !important; font-weight: 600; border-bottom: none !important;
+        box-shadow: none !important; }
+    [data-testid="stTab"] > * { color: inherit !important; }
+    [data-testid="stTab"][aria-selected="true"] { background: #425844; color: #f8f7f0 !important; }
+    [data-testid="stTab"]:hover { color: #2b412e !important; }
+    [data-testid="stTab"][aria-selected="true"]:hover { color: #f8f7f0 !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -321,6 +320,7 @@ tab_form, tab_chat = st.tabs(["Check readiness", "Ask BeReady"])
 
 # ---------- Tab 1: deterministic form ----------
 with tab_form:
+    st.caption("Pick your trail and get an instant, honest verdict.")
     with st.form("readiness"):
         trail_choice = st.selectbox(
             "Trail",
@@ -351,7 +351,7 @@ with tab_form:
                 f'<div class="card {css}">'
                 '<div class="verdict-kicker">Verdict</div>'
                 f'<div class="verdict-head">{r["head"]}</div>'
-                '<span class="badge">&#10003; Computed by code, not generated</span>'
+                '<span class="badge">Carefully assessed, not a guess</span>'
                 f'<div class="note">{r["meta"]}</div>'
                 f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul></div>',
                 unsafe_allow_html=True,
@@ -373,29 +373,15 @@ with tab_chat:
         api_key = None
     api_key = api_key or os.environ.get("GOOGLE_API_KEY")
 
+    st.caption("Prefer your own words? Ask about any trail.")
+
     if not api_key:
         st.info(
-            "Chat needs a Google Gemini API key. Add GOOGLE_API_KEY in the app settings "
+            "This needs a Google Gemini API key. Add GOOGLE_API_KEY in the app settings "
             "(Manage app, Secrets) to turn it on. The readiness form works without a key."
         )
     else:
         os.environ["GOOGLE_API_KEY"] = api_key
-        st.caption("Ask in your own words, for example: Am I ready for Laugavegur in 6 weeks if I don't train?")
-        mode = st.radio(
-            "Answer mode",
-            ["Single agent (fast)", "Agent team (Researcher, Analyst, Reasoning)"],
-            horizontal=True,
-            help=("Single agent: one Gemini agent with the deterministic readiness tool. "
-                  "Agent team: a Researcher gathers facts, an Analyst interprets them, and a "
-                  "reasoning coordinator writes the final answer. The verdict still comes from "
-                  "the deterministic tool. The team makes several model calls, so it is slower."),
-        )
-        st.markdown(
-            '<div class="honest-note">&#10003; Every verdict here still comes from the '
-            "deterministic tool, not the model.</div>",
-            unsafe_allow_html=True,
-        )
-        # On-brand chat avatars (hiking theme, matches the Icelandic-highlands palette)
         AVATARS = {"user": "🥾", "assistant": "🏔️"}
         EXAMPLES = [
             "Am I ready for Laugavegur in 6 weeks? I don't train.",
@@ -405,30 +391,41 @@ with tab_chat:
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        example_prompt = None
-        if not st.session_state.messages:
-            st.caption("Try an example:")
-            for col, q in zip(st.columns(len(EXAMPLES)), EXAMPLES):
-                if col.button(q, key=f"ex_{q}"):
-                    example_prompt = q
+        # 1) Input first: a prominent ask box at the top (one-question tool, not a chat).
+        with st.form("ask", clear_on_submit=True):
+            typed = st.text_input(
+                "Your question", placeholder="Am I ready for Besseggen in 8 weeks?",
+                label_visibility="collapsed",
+            )
+            asked = st.form_submit_button("Ask BeReady")
 
+        # 2) Example starters as quick-asks.
+        st.caption("Or try an example:")
+        example_q = None
+        for q in EXAMPLES:
+            if st.button(q, key=f"ex_{q}", use_container_width=True):
+                example_q = q
+
+        # 3) Optional look behind the scenes. Same verdict, just shows the reasoning.
+        with st.expander("How BeReady answers"):
+            st.caption("Same verdict either way. Turn this on to see the reasoning behind "
+                       "the answer, which takes a bit longer.")
+            use_team = st.toggle("Show the reasoning")
+
+        query = (typed.strip() if asked and typed.strip() else None) or example_q
+        if query:
+            st.session_state.messages.append({"role": "user", "content": query})
+            spinner_text = "Reasoning through it..." if use_team else "Thinking..."
+            with st.spinner(spinner_text):
+                try:
+                    runner = get_team() if use_team else get_agent()
+                    resp = runner.run(query)
+                    answer = getattr(resp, "content", None) or str(resp)
+                except Exception as e:
+                    answer = ("Something went wrong reaching the model. This is usually the free-tier "
+                              f"limit, try again in a moment. ({type(e).__name__})")
+            st.session_state.messages.append({"role": "assistant", "content": answer})
+
+        # 4) Answer(s) render below the input, newest last.
         for m in st.session_state.messages:
             st.chat_message(m["role"], avatar=AVATARS[m["role"]]).markdown(m["content"])
-
-        prompt = st.chat_input("Ask BeReady about a trail...") or example_prompt
-        if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            st.chat_message("user", avatar=AVATARS["user"]).markdown(prompt)
-            use_team = mode.startswith("Agent team")
-            spinner_text = "The team is researching and reasoning..." if use_team else "Thinking..."
-            with st.chat_message("assistant", avatar=AVATARS["assistant"]):
-                with st.spinner(spinner_text):
-                    try:
-                        runner = get_team() if use_team else get_agent()
-                        resp = runner.run(prompt)
-                        answer = getattr(resp, "content", None) or str(resp)
-                    except Exception as e:
-                        answer = ("Something went wrong reaching the model. This is usually the free-tier "
-                                  f"limit, try again in a moment. ({type(e).__name__})")
-                    st.markdown(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
