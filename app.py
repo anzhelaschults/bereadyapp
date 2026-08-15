@@ -14,9 +14,19 @@ Run locally:
 
 import os
 import re
+import base64
+import pathlib
 import streamlit as st
 
 st.set_page_config(page_title="BeReady", page_icon="🏔️", layout="centered")
+
+
+@st.cache_data(show_spinner=False)
+def _hero_b64():
+    """Load the hero photo next to this file and inline it, so no static server is needed.
+    If the file is missing, the app falls back to a text header and still works."""
+    p = pathlib.Path(__file__).with_name("hero.jpg")
+    return base64.b64encode(p.read_bytes()).decode() if p.exists() else ""
 
 # ---------- Brand (Icelandic highlands): moss, lichen, warm bone, Inter ----------
 st.markdown(
@@ -27,15 +37,41 @@ st.markdown(
     .stApp { background: #f8f7f0; }
     .brand-title { font-size: 2.4rem; font-weight: 700; color: #2b412e; margin-bottom: 0.1rem; }
     .brand-sub { font-size: 1.05rem; color: #5F7D3F; margin-bottom: 1.2rem; }
+    /* hero banner */
+    .hero { position: relative; height: 250px; border-radius: 16px; overflow: hidden;
+            margin: 0 0 1.4rem 0; background-size: cover; background-position: center 60%;
+            display: flex; flex-direction: column; justify-content: flex-end;
+            padding: 1.3rem 1.5rem; }
+    .hero-mark { font-size: 2.7rem; font-weight: 700; color: #f8f7f0; line-height: 1;
+                 text-shadow: 0 2px 10px rgba(0,0,0,0.45); }
+    .hero-tag { font-size: 1.12rem; color: #dbe3d5; margin-top: 0.25rem;
+                text-shadow: 0 1px 6px rgba(0,0,0,0.55); }
+    .hero-loc { position: absolute; top: 1rem; left: 1.5rem; font-size: 0.78rem;
+                color: #d9ddd3; letter-spacing: 0.04em; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    /* smaller hero on phones so the form is reachable with less scrolling */
+    @media (max-width: 640px) {
+        .hero { height: 190px; padding: 1rem 1.1rem; }
+        .hero-mark { font-size: 2.1rem; }
+        .hero-tag { font-size: 0.98rem; }
+    }
     .card { background: #ffffff; border: 1px solid #e3e2d6; border-radius: 14px;
-            padding: 1.1rem 1.3rem; margin-top: 0.8rem; }
+            padding: 1.1rem 1.3rem; margin-top: 0.8rem;
+            box-shadow: 0 6px 22px rgba(43,65,46,0.06); }
     .verdict-ready    { border-left: 6px solid #425844; }
     .verdict-cond     { border-left: 6px solid #b98a2e; }
     .verdict-hard     { border-left: 6px solid #a1502f; }
     .verdict-toosoon  { border-left: 6px solid #50808e; }
     .verdict-unknown  { border-left: 6px solid #6b7280; }
+    .verdict-kicker { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em;
+                      text-transform: uppercase; color: #5F7D3F; margin-bottom: 0.15rem; }
     .verdict-head { font-size: 1.25rem; font-weight: 600; color: #2b412e; margin-bottom: 0.3rem; }
-    .plan-title { font-weight: 600; color: #425844; margin-top: 0.4rem; }
+    .badge { display: inline-block; background: #eef2e8; color: #425844; font-size: 0.7rem;
+             font-weight: 600; padding: 0.16rem 0.6rem; border-radius: 999px;
+             margin-bottom: 0.55rem; letter-spacing: 0.02em; }
+    .plan-title { font-weight: 600; color: #425844; margin-top: 0.5rem; }
+    .plan-list { list-style: none; padding-left: 0; margin: 0.3rem 0 0 0; }
+    .plan-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.35rem; color: #2e3a28; }
+    .plan-list li:before { content: "\2713"; position: absolute; left: 0; color: #425844; font-weight: 700; }
     .note { color: #6b7280; font-size: 0.9rem; }
     .stButton>button, .stFormSubmitButton>button,
     div[data-testid="stFormSubmitButton"] button {
@@ -44,6 +80,14 @@ st.markdown(
     .stButton>button:hover, .stFormSubmitButton>button:hover,
     div[data-testid="stFormSubmitButton"] button:hover {
         background: #2b412e; color: #ffffff; }
+    /* chat tab: alert/info boxes match the palette instead of default blue */
+    div[data-testid="stAlert"] { background: #eef2e8; border: 1px solid #dfe5d6;
+        border-radius: 12px; }
+    div[data-testid="stAlert"], div[data-testid="stAlert"] p { color: #2b412e; }
+    /* chat tab: message bubbles read as soft cards */
+    div[data-testid="stChatMessage"] { background: #ffffff; border: 1px solid #e8e7db;
+        border-radius: 14px; box-shadow: 0 4px 16px rgba(43,65,46,0.05); }
+    .honest-note { color: #5F7D3F; font-size: 0.82rem; margin: 0.2rem 0 0.6rem 0; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -243,11 +287,24 @@ def get_team():
 
 
 # ---------- Header ----------
-st.markdown('<div class="brand-title">BeReady</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="brand-sub">An honest answer on whether you\'re ready for a trail, and what to do next.</div>',
-    unsafe_allow_html=True,
-)
+_hero = _hero_b64()
+if _hero:
+    st.markdown(
+        '<div class="hero" style="background-image: '
+        'linear-gradient(180deg, rgba(30,44,32,0.10) 0%, rgba(30,44,32,0.80) 100%), '
+        f'url(\'data:image/jpeg;base64,{_hero}\');">'
+        '<div class="hero-loc">&#9678;&nbsp; Th&oacute;rsm&ouml;rk, Iceland</div>'
+        '<div class="hero-mark">BeReady</div>'
+        '<div class="hero-tag">Can you handle this trail?</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown('<div class="brand-title">BeReady</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="brand-sub">An honest answer on whether you\'re ready for a trail, and what to do next.</div>',
+        unsafe_allow_html=True,
+    )
 
 tab_form, tab_chat = st.tabs(["Check readiness", "Ask BeReady"])
 
@@ -266,6 +323,7 @@ with tab_form:
         if trail_choice == "My trail isn't on the list":
             st.markdown(
                 '<div class="card verdict-unknown">'
+                '<div class="verdict-kicker">Honest refusal</div>'
                 '<div class="verdict-head">I don\'t know this trail yet</div>'
                 "I don't have verified data for it, so I won't guess at a verdict. "
                 "Pick a trail from the list, or send me its length and elevation gain and I'll add it."
@@ -279,9 +337,12 @@ with tab_form:
                    "hard": "verdict-hard", "toosoon": "verdict-toosoon"}[r["status"]]
             plan_html = "".join(f"<li>{s}</li>" for s in r["plan"])
             st.markdown(
-                f'<div class="card {css}"><div class="verdict-head">{r["head"]}</div>'
+                f'<div class="card {css}">'
+                '<div class="verdict-kicker">Verdict</div>'
+                f'<div class="verdict-head">{r["head"]}</div>'
+                '<span class="badge">&#10003; Computed by code, not generated</span>'
                 f'<div class="note">{r["meta"]}</div>'
-                f'<div class="plan-title">Plan</div><ul>{plan_html}</ul></div>',
+                f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul></div>',
                 unsafe_allow_html=True,
             )
             st.markdown(
@@ -317,6 +378,11 @@ with tab_chat:
                   "Agent team: a Researcher gathers facts, an Analyst interprets them, and a "
                   "reasoning coordinator writes the final answer. The verdict still comes from "
                   "the deterministic tool. The team makes several model calls, so it is slower."),
+        )
+        st.markdown(
+            '<div class="honest-note">&#10003; Every verdict here still comes from the '
+            "deterministic tool, not the model.</div>",
+            unsafe_allow_html=True,
         )
         # On-brand chat avatars (hiking theme, matches the Icelandic-highlands palette)
         AVATARS = {"user": "🥾", "assistant": "🏔️"}

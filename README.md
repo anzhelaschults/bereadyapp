@@ -2,6 +2,10 @@
 
 **Can you handle this trail?** BeReady is an honest AI assistant that tells first-time hikers whether they can handle a specific trail and exactly how to prepare.
 
+<p align="center">
+  <img src="preview.png" alt="BeReady app preview: hero, readiness form, and an honest verdict with a week-by-week plan" width="360">
+</p>
+
 Live app: https://bereadyapp.streamlit.app
 
 Built as an AI product engineering project, part of an MSc in Product Management and AI. The goal was not to wrap a chatbot around a prompt, but to design an AI system that stays honest and refuses to guess.
@@ -60,6 +64,8 @@ On Streamlit Community Cloud, add `GOOGLE_API_KEY` under Manage app, Secrets.
 
 ```
 app.py                  Streamlit app: deterministic form + Gemini-backed chat
+hero.jpg                Hero banner photo (Þórsmörk, Iceland)
+preview.png             App preview used in this README
 requirements.txt        streamlit, agno, google-genai
 .streamlit/config.toml  Theme (Icelandic highlands palette)
 ```
