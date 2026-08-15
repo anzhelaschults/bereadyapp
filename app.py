@@ -173,12 +173,16 @@ def readiness_from_text(query: str) -> str:
         return ("That trail isn't covered yet. For now BeReady prepares for trails in Iceland and "
                 "Norway: Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
                 "More countries and trails are coming. Pick one of these for an honest verdict.")
-    if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner"]):
+    if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner", "not fit", "unfit", "out of shape"]):
         fit = 1
-    elif any(w in q for w in ["regularly", "every week", "often", "fit", "athletic", "train a lot"]):
+    elif any(w in q for w in ["regularly", "every week", "often", "very fit", "athletic", "train a lot", "in good shape"]):
         fit = 3
-    else:
+    elif any(w in q for w in ["sometimes", "occasionally", "moderate", "gym", "a bit", "somewhat active", "now and then"]):
         fit = 2
+    else:
+        # Honest default: don't assume a fitness level. Ask, the same way we refuse unknown trails.
+        return ("Almost there, I just need your training level. Do you train regularly, "
+                "sometimes, or not at all? Then I can give you an honest verdict.")
     m = re.search(r"(\d+)\s*week", q)
     weeks = int(m.group(1)) if m else None
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
@@ -201,7 +205,9 @@ def get_agent():
         asks whether they are ready for a trail.
 
         Args:
-            query: The user's question, including trail name, training level, and weeks.
+            query: Pass the user's question WORD FOR WORD, including their exact training level
+                (for example "I don't train") and timeframe. Do not drop, upgrade, or paraphrase
+                the training level, the verdict depends on it.
 
         Returns:
             A readiness verdict and plan, or an honest refusal if the trail is unknown.
@@ -214,6 +220,9 @@ def get_agent():
         instructions=[
             "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
             "For any question about readiness for a trail, call readiness_score and base your answer on it.",
+            "When you call readiness_score, pass the user's full question verbatim, including their "
+            "exact training level and timeframe. Never drop, upgrade, or soften the training level.",
+            "Report the verdict readiness_score returns exactly. Never make it more optimistic than the tool.",
             "You are not a doctor. For injuries or illness, tell the person to see a doctor.",
             "Never invent trail facts. If a trail is unknown, say so honestly.",
             "Be warm, concise, and specific.",
@@ -242,7 +251,9 @@ def get_team():
         person's training level, and how many weeks until the hike.
 
         Args:
-            query: The user's question, including trail name, training level, and weeks.
+            query: Pass the user's question WORD FOR WORD, including their exact training level
+                (for example "I don't train") and timeframe. Do not drop, upgrade, or paraphrase
+                the training level, the verdict depends on it.
 
         Returns:
             A readiness verdict and plan, or an honest refusal if the trail is unknown.
@@ -267,7 +278,9 @@ def get_team():
         tools=research_tools,
         instructions=[
             "Collect only verified facts for the question.",
-            "For readiness, call readiness_score with the trail, training level, and weeks.",
+            "For readiness, call readiness_score and pass the user's full question verbatim, "
+            "including their exact training level (for example 'I don't train') and timeframe. "
+            "Never drop, upgrade, or paraphrase the training level.",
             "You may web-search only for time-sensitive facts, such as whether a trail is open this season.",
             "Never invent trail data. If the trail is unknown to readiness_score, report that honestly.",
         ],
@@ -290,7 +303,7 @@ def get_team():
             "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
             "Delegate fact-finding to the Researcher and interpretation to the Analyst, then give one clear answer.",
             "Base every readiness verdict on readiness_score. Never compute or invent the verdict yourself.",
-            "Open with the exact verdict wording that readiness_score returns (for example, You're ready, or Too soon), then add context. Do not soften or reword the verdict itself.",
+            "Open with the exact verdict wording that readiness_score returns (for example, You're ready, or Too soon), then add context. Do not soften, reword, or make the verdict more optimistic than the tool.",
             "If the trail is unknown, refuse honestly and ask for verified data. Do not guess.",
             "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
             "Be warm, concise, and specific.",
@@ -322,55 +335,42 @@ else:
         unsafe_allow_html=True,
     )
 
-tab_form, tab_chat = st.tabs(["Check readiness", "Ask BeReady"])
+tab_form, tab_chat = st.tabs(["Quick check", "Ask BeReady"])
 
 # ---------- Tab 1: deterministic form ----------
 with tab_form:
-    st.caption("Pick your trail and get an instant, honest verdict.")
-    # Trail selector sits outside the form so an unknown trail can hide the rest
-    # immediately and show the honest refusal, without asking for fitness or weeks.
     trail_choice = st.selectbox(
         "Trail",
-        options=[t["name"] for t in TRAILS.values()] + ["My trail isn't on the list"],
+        options=[t["name"] for t in TRAILS.values()],
     )
+    st.caption("Five trails in Iceland and Norway for now, more coming.")
 
-    if trail_choice == "My trail isn't on the list":
+    with st.form("readiness"):
+        fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
+        weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
+        submitted = st.form_submit_button("Check my readiness")
+
+    if submitted:
+        with st.spinner("Assessing your readiness..."):
+            r = assess(trail_choice, fitness, weeks)
+        css = {"ready": "verdict-ready", "cond": "verdict-cond",
+               "hard": "verdict-hard", "toosoon": "verdict-toosoon"}[r["status"]]
+        plan_html = "".join(f"<li>{s}</li>" for s in r["plan"])
         st.markdown(
-            '<div class="card verdict-unknown">'
-            '<div class="verdict-kicker">Not covered yet</div>'
-            '<div class="verdict-head">For now BeReady prepares for trails in Iceland and Norway</div>'
-            "Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
-            "More countries and trails are coming, pick one for an honest verdict."
-            "</div>",
+            f'<div class="card {css}">'
+            '<div class="verdict-kicker">Verdict</div>'
+            f'<div class="verdict-head">{r["head"]}</div>'
+            '<span class="badge">Carefully assessed, not a guess</span>'
+            f'<div class="note">{r["meta"]}</div>'
+            f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul></div>',
             unsafe_allow_html=True,
         )
-    else:
-        with st.form("readiness"):
-            fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
-            weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
-            submitted = st.form_submit_button("Check my readiness")
-
-        if submitted:
-            with st.spinner("Assessing your readiness..."):
-                r = assess(trail_choice, fitness, weeks)
-            css = {"ready": "verdict-ready", "cond": "verdict-cond",
-                   "hard": "verdict-hard", "toosoon": "verdict-toosoon"}[r["status"]]
-            plan_html = "".join(f"<li>{s}</li>" for s in r["plan"])
-            st.markdown(
-                f'<div class="card {css}">'
-                '<div class="verdict-kicker">Verdict</div>'
-                f'<div class="verdict-head">{r["head"]}</div>'
-                '<span class="badge">Carefully assessed, not a guess</span>'
-                f'<div class="note">{r["meta"]}</div>'
-                f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                '<div class="card"><span class="note">'
-                "BeReady is not a doctor. This is an approximate assessment of physical readiness. "
-                "If you have injuries, pain, or chronic conditions, talk to a doctor before hiking."
-                "</span></div>",
-                unsafe_allow_html=True,
+        st.markdown(
+            '<div class="card"><span class="note">'
+            "BeReady is not a doctor. This is an approximate assessment of physical readiness. "
+            "If you have injuries, pain, or chronic conditions, talk to a doctor before hiking."
+            "</span></div>",
+            unsafe_allow_html=True,
             )
 
 # ---------- Tab 2: chat ----------
