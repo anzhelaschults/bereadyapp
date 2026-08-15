@@ -71,7 +71,7 @@ st.markdown(
     .plan-title { font-weight: 600; color: #425844; margin-top: 0.5rem; }
     .plan-list { list-style: none; padding-left: 0; margin: 0.3rem 0 0 0; }
     .plan-list li { position: relative; padding-left: 1.5rem; margin-bottom: 0.35rem; color: #2e3a28; }
-    .plan-list li:before { content: "\2713"; position: absolute; left: 0; color: #425844; font-weight: 700; }
+    .plan-list li:before { content: "\\2713"; position: absolute; left: 0; color: #425844; font-weight: 700; }
     .note { color: #6b7280; font-size: 0.9rem; }
     .stButton>button, .stFormSubmitButton>button,
     div[data-testid="stFormSubmitButton"] button {
@@ -88,6 +88,17 @@ st.markdown(
     div[data-testid="stChatMessage"] { background: #ffffff; border: 1px solid #e8e7db;
         border-radius: 14px; box-shadow: 0 4px 16px rgba(43,65,46,0.05); }
     .honest-note { color: #5F7D3F; font-size: 0.82rem; margin: 0.2rem 0 0.6rem 0; }
+    /* make the two modes read as a segmented control, not faint text tabs */
+    div[data-baseweb="tab-list"] { gap: 6px; background: #eceee4; padding: 5px;
+        border-radius: 12px; display: inline-flex; margin-bottom: 0.7rem; }
+    button[data-baseweb="tab"] { height: auto; padding: 0.45rem 1.15rem; border-radius: 9px;
+        color: #6b7280; }
+    button[data-baseweb="tab"] p { font-weight: 600; margin: 0; }
+    button[data-baseweb="tab"][aria-selected="true"] { background: #425844; }
+    button[data-baseweb="tab"][aria-selected="true"] p { color: #f8f7f0; }
+    button[data-baseweb="tab"]:hover p { color: #2b412e; }
+    button[data-baseweb="tab"][aria-selected="true"]:hover p { color: #f8f7f0; }
+    div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] { display: none; }
     </style>
     """,
     unsafe_allow_html=True,
