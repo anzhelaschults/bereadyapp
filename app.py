@@ -170,7 +170,7 @@ def readiness_from_text(query: str) -> str:
                 "against your fitness once you're cleared to hike.")
     rec = next((t for k, t in TRAILS.items() if k in q), None)
     if rec is None:
-        return ("That trail isn't covered yet. For now BeReady covers five trails in Iceland and "
+        return ("That trail isn't covered yet. For now BeReady prepares for trails in Iceland and "
                 "Norway: Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
                 "More countries and trails are coming. Pick one of these for an honest verdict.")
     if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner"]):
@@ -338,9 +338,8 @@ with tab_form:
         st.markdown(
             '<div class="card verdict-unknown">'
             '<div class="verdict-kicker">Not covered yet</div>'
-            '<div class="verdict-head">That trail isn\'t on BeReady yet</div>'
-            "For now BeReady covers five trails in Iceland and Norway: Laugavegur, "
-            "Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
+            '<div class="verdict-head">For now BeReady prepares for trails in Iceland and Norway</div>'
+            "Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
             "More countries and trails are coming, pick one for an honest verdict."
             "</div>",
             unsafe_allow_html=True,
@@ -383,7 +382,7 @@ with tab_chat:
         api_key = None
     api_key = api_key or os.environ.get("GOOGLE_API_KEY")
 
-    st.caption("Prefer your own words? Ask about any trail.")
+    st.caption("Prefer your own words? Ask about a trail in Iceland or Norway.")
 
     if not api_key:
         st.info(
@@ -395,8 +394,10 @@ with tab_chat:
         AVATARS = {"user": "🥾", "assistant": "🏔️"}
         EXAMPLES = [
             "Am I ready for Laugavegur in 6 weeks? I don't train.",
-            "Besseggen in 8 weeks, I train regularly.",
+            "Fimmvorduhals in 6 weeks, sometimes active.",
             "Trolltunga in 4 weeks, sometimes active.",
+            "Besseggen in 8 weeks, I train regularly.",
+            "Preikestolen in 3 weeks, I don't train.",
         ]
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -409,8 +410,8 @@ with tab_chat:
             )
             asked = st.form_submit_button("Ask BeReady")
 
-        # 2) Example starters as quick-asks.
-        st.caption("Or try an example:")
+        # 2) Example starters double as the coverage list: the five trails we cover.
+        st.caption("The trails we cover, tap to ask:")
         example_q = None
         for q in EXAMPLES:
             if st.button(q, key=f"ex_{q}", use_container_width=True):
