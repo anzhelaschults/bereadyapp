@@ -170,9 +170,9 @@ def readiness_from_text(query: str) -> str:
                 "against your fitness once you're cleared to hike.")
     rec = next((t for k, t in TRAILS.items() if k in q), None)
     if rec is None:
-        return ("I don't have verified data for that trail yet, so I'd rather say I don't know than "
-                "guess. Today I cover Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and "
-                "Preikestolen. Pick one of those for an honest verdict. More trails are coming.")
+        return ("That trail isn't covered yet. For now BeReady covers five trails in Iceland and "
+                "Norway: Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
+                "More countries and trails are coming. Pick one of these for an honest verdict.")
     if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner"]):
         fit = 1
     elif any(w in q for w in ["regularly", "every week", "often", "fit", "athletic", "train a lot"]):
@@ -337,11 +337,11 @@ with tab_form:
     if trail_choice == "My trail isn't on the list":
         st.markdown(
             '<div class="card verdict-unknown">'
-            '<div class="verdict-kicker">Honest refusal</div>'
-            '<div class="verdict-head">I don\'t know this trail yet</div>'
-            "I don't have verified data for it, so I'd rather say I don't know than guess. "
-            "Today I cover Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen, "
-            "pick one for an honest verdict. More trails are coming."
+            '<div class="verdict-kicker">Not covered yet</div>'
+            '<div class="verdict-head">That trail isn\'t on BeReady yet</div>'
+            "For now BeReady covers five trails in Iceland and Norway: Laugavegur, "
+            "Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
+            "More countries and trails are coming, pick one for an honest verdict."
             "</div>",
             unsafe_allow_html=True,
         )
