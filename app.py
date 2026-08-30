@@ -213,6 +213,13 @@ def readiness_from_text(query: str) -> str:
         fit = 2
     else:
         # Honest default: don't assume a fitness level. Ask, the same way we refuse unknown trails.
+        # Stash the question so the chat can offer inline training-level buttons that keep the
+        # trail and timeframe, no retyping.
+        try:
+            st.session_state["_needs_fitness"] = True
+            st.session_state["_fitness_query"] = query
+        except Exception:
+            pass
         return ("Almost there, I just need your training level. Do you train regularly, "
                 "sometimes, or not at all? Then I can give you an honest verdict.")
     weeks = _weeks_from_text(q)
@@ -394,6 +401,11 @@ with tab_form:
         "Trail",
         options=[t["name"] for t in TRAILS.values()],
     )
+    _sel = next(t for t in TRAILS.values() if t["name"] == trail_choice)
+    st.caption(
+        f"{_sel['km']} km  \u00b7  {_plural(_sel['days'], 'day')}  \u00b7  "
+        f"{DIFF_WORD[_sel['diff']]} difficulty  \u00b7  {_sel['risk']}"
+    )
     st.caption("Five trails in Iceland and Norway for now, more coming.")
 
     with st.form("readiness"):
@@ -468,16 +480,33 @@ with tab_chat:
             if st.button(q, key=f"ex_{q}", use_container_width=True):
                 example_q = q
 
+        # If the last answer asked for a training level, offer it inline so the user can
+        # continue without scrolling up or retyping the trail and weeks.
+        followup_q = None
+        _msgs = st.session_state.get("messages", [])
+        if _msgs and _msgs[-1].get("needs_fitness"):
+            base = _msgs[-1]["needs_fitness"]
+            st.caption("Your training level:")
+            fc1, fc2, fc3 = st.columns(3)
+            if fc1.button("I don't train", key="fq1", use_container_width=True):
+                followup_q = f"{base} I don't train."
+            if fc2.button("Sometimes active", key="fq2", use_container_width=True):
+                followup_q = f"{base} I sometimes train."
+            if fc3.button("I train regularly", key="fq3", use_container_width=True):
+                followup_q = f"{base} I train regularly."
+
         # 3) Optional look behind the scenes. Same verdict, just shows the reasoning.
         with st.expander("How BeReady answers"):
             st.caption("Same verdict either way. Turn this on to see the reasoning behind "
                        "the answer, which takes a bit longer.")
             use_team = st.toggle("Show the reasoning")
 
-        query = (typed.strip() if asked and typed.strip() else None) or example_q
+        query = (typed.strip() if asked and typed.strip() else None) or example_q or followup_q
         if query:
             st.session_state.messages.append({"role": "user", "content": query})
             st.session_state.pop("_chat_verdict", None)
+            st.session_state.pop("_needs_fitness", None)
+            st.session_state.pop("_fitness_query", None)
             spinner_text = "Reasoning through it..." if use_team else "Thinking..."
             with st.spinner(spinner_text):
                 try:
@@ -495,6 +524,10 @@ with tab_chat:
                 # write-up stays visible below the card.
                 msg["verdict"] = verdict
                 msg["show_text"] = bool(use_team)
+            needs_fit = st.session_state.pop("_needs_fitness", False)
+            fit_query = st.session_state.pop("_fitness_query", None)
+            if needs_fit and fit_query:
+                msg["needs_fitness"] = fit_query
             st.session_state.messages.append(msg)
 
         # 4) Answer(s) render below the input, newest last.
