@@ -206,9 +206,10 @@ def readiness_from_text(query: str) -> str:
     weeks = _weeks_from_text(q)
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
     tail = f" You have {weeks} weeks." if weeks else ""
-    plan_txt = " ".join(f"({i+1}) {s}" for i, s in enumerate(plan))
-    return (f"{rec['name']}, difficulty {DIFF_WORD[rec['diff']]}, your level {FIT_WORD[fit]}.{tail} "
-            f"{head} Plan: {plan_txt} This is an approximate fitness assessment, not a medical opinion.")
+    plan_txt = "\n".join(f"- {s}" for s in plan)
+    return (f"{rec['name']}, difficulty {DIFF_WORD[rec['diff']]}, your level {FIT_WORD[fit]}.{tail}\n\n"
+            f"**{head}**\n\nPlan:\n{plan_txt}\n\n"
+            f"*This is an approximate fitness assessment, not a medical opinion.*")
 
 
 @st.cache_resource(show_spinner=False)
