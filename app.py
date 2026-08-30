@@ -40,7 +40,8 @@ st.markdown(
     /* hero banner */
     .hero { position: relative; height: 250px; border-radius: 16px; overflow: hidden;
             margin: 0 0 1.4rem 0; background-size: cover; background-position: center 60%;
-            display: flex; flex-direction: column; justify-content: flex-end;
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center;
             padding: 1.3rem 1.5rem; }
     .hero-mark { font-size: 2.7rem; font-weight: 700; color: #f8f7f0; line-height: 1;
                  text-shadow: 0 2px 10px rgba(0,0,0,0.45); }
@@ -57,6 +58,10 @@ st.markdown(
     .card { background: #ffffff; border: 1px solid #e3e2d6; border-radius: 14px;
             padding: 1.1rem 1.3rem; margin-top: 0.8rem;
             box-shadow: 0 6px 22px rgba(43,65,46,0.06); }
+    /* group the form inputs into one floating white card, like the design mockup */
+    div[data-testid="stForm"] { background: #ffffff; border: 1px solid #e3e2d6;
+            border-radius: 16px; padding: 1.2rem 1.4rem; margin-top: 0.4rem;
+            box-shadow: 0 8px 26px rgba(43,65,46,0.08); }
     .verdict-ready    { border-left: 6px solid #425844; }
     .verdict-cond     { border-left: 6px solid #b98a2e; }
     .verdict-hard     { border-left: 6px solid #a1502f; }
@@ -406,7 +411,6 @@ with tab_form:
         f"{_sel['km']} km  \u00b7  {_plural(_sel['days'], 'day')}  \u00b7  "
         f"{DIFF_WORD[_sel['diff']]} difficulty  \u00b7  {_sel['risk']}"
     )
-    st.caption("Five trails in Iceland and Norway for now, more coming.")
 
     with st.form("readiness"):
         fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
