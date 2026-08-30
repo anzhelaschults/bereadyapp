@@ -159,6 +159,26 @@ def assess(trail_name, fitness_label, weeks):
     }
 
 
+def _weeks_from_text(q: str):
+    """Parse the timeframe from a free-form question, in weeks.
+    Understands "8 weeks" as before, and now also months: "2 months" -> 8,
+    "a month and a half" -> 6, "one month" -> 4. Returns None when no clear
+    timeframe is given; the verdict logic treats that honestly, as before."""
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*week", q)
+    if m:
+        return int(float(m.group(1).replace(",", ".")))
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*month", q)
+    if m:
+        return round(float(m.group(1).replace(",", ".")) * 4)
+    if "month and a half" in q:
+        return 6
+    if re.search(r"\b(?:a|one)\s+month\b", q):
+        return 4
+    if re.search(r"couple\s+of\s+months", q):
+        return 8
+    return None
+
+
 def readiness_from_text(query: str) -> str:
     """Same rules as the form, but parses a free-form question. Used by the chat agent."""
     if not query or not query.strip():
@@ -183,8 +203,7 @@ def readiness_from_text(query: str) -> str:
         # Honest default: don't assume a fitness level. Ask, the same way we refuse unknown trails.
         return ("Almost there, I just need your training level. Do you train regularly, "
                 "sometimes, or not at all? Then I can give you an honest verdict.")
-    m = re.search(r"(\d+)\s*week", q)
-    weeks = int(m.group(1)) if m else None
+    weeks = _weeks_from_text(q)
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
     tail = f" You have {weeks} weeks." if weeks else ""
     plan_txt = " ".join(f"({i+1}) {s}" for i, s in enumerate(plan))
