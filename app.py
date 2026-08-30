@@ -129,6 +129,13 @@ def _verdict(diff, fit, weeks, risk):
             "Do one trial hike with a full pack to check your boots and gear.",
         ]
     if gap == 1:
+        if weeks is not None and weeks < 6:
+            wk = f"{weeks} week" + ("s" if weeks != 1 else "")
+            return "cond", f"Almost ready, but {wk} is tight. This step up needs about 6 weeks of preparation.", [
+                "Start now: three to four walks a week, 5-8 km, with a light pack (4-6 kg).",
+                "Add one longer weekend hike each week, building toward a real day on the trail.",
+                "If you can't add time, pick an easier trail this season and come back to this one.",
+            ]
         return "cond", "Almost ready. You'll need about 6 weeks of preparation.", [
             "Weeks 1-2: three walks a week, 5-8 km at an easy pace.",
             "Weeks 3-4: add a light pack (4-6 kg) and one longer hike on the weekend.",
