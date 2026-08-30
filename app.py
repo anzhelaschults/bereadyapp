@@ -898,7 +898,6 @@ with tab_chat:
         api_key = None
     api_key = api_key or os.environ.get("GOOGLE_API_KEY")
 
-    st.caption("Prefer your own words? Ask about a trail in Iceland or Norway.")
 
     if not api_key:
         st.info(
@@ -908,19 +907,16 @@ with tab_chat:
     else:
         os.environ["GOOGLE_API_KEY"] = api_key
         AVATARS = {"user": "\U0001F97E", "assistant": "\U0001F3D4️"}
-        EXAMPLES = [
-            "Am I ready for Laugavegur in 6 weeks? I don't train.",
-            "Trolltunga in 4 weeks, sometimes active.",
-            "Besseggen in 8 weeks, I train regularly.",
+        STARTERS = [
+            ("Laugavegur · 6 wks · don't train", "Am I ready for Laugavegur in 6 weeks? I don't train."),
+            ("Trolltunga · 4 wks · sometimes", "Trolltunga in 4 weeks, sometimes active."),
+            ("Besseggen · 8 wks · regularly", "Besseggen in 8 weeks, I train regularly."),
         ]
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        # Optional look behind the scenes: same verdict, just shows the reasoning.
-        with st.expander("How BeReady answers"):
-            st.caption("Same verdict either way. Turn this on to see the reasoning behind "
-                       "the answer, which takes a bit longer.")
-            use_team = st.toggle("Show the reasoning")
+        # Reasoning mode is a subtle toggle at the bottom; read its saved value here.
+        use_team = st.session_state.get("show_reasoning", False)
 
         # Empty state: a friendly opener plus a few conversation starters.
         starter_q = None
@@ -928,10 +924,10 @@ with tab_chat:
             with st.chat_message("assistant", avatar=AVATARS["assistant"]):
                 st.markdown("Hi, I'm BeReady. Tell me a trail, how you train, and how many "
                             "weeks you have, and I'll give you an honest verdict.")
-            st.caption("Try one:")
-            for q in EXAMPLES:
-                if st.button(q, key=f"st_{q}", use_container_width=True):
-                    starter_q = q
+            _cols = st.columns(3)
+            for _i, (_label, _q) in enumerate(STARTERS):
+                if _cols[_i].button(_label, key=f"st_{_i}", use_container_width=True):
+                    starter_q = _q
 
         # The conversation so far, newest last.
         for m in st.session_state.messages:
@@ -994,3 +990,9 @@ with tab_chat:
                 msg["needs_fitness"] = fit_query
             st.session_state.messages.append(msg)
             st.rerun()
+
+        # A subtle "how it works" toggle, kept out of the way at the bottom.
+        with st.expander("How BeReady answers"):
+            st.caption("Same verdict either way. Turn this on to see the reasoning behind "
+                       "the answer, which takes a bit longer.")
+            st.toggle("Show the reasoning", key="show_reasoning")
