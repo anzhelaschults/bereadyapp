@@ -165,6 +165,21 @@ def _verdict(diff, fit, weeks, risk):
     ]
 
 
+FIT_FRIENDLY = {1: "not training", 2: "sometimes active", 3: "training regularly"}
+
+
+def _why(status, weeks, risk):
+    if status == "ready":
+        return "Your fitness matches this trail's demands. Keep it up and do one trial hike with a full pack."
+    if status == "cond":
+        if weeks and weeks < 6:
+            return f"You are one step short, and {_plural(weeks, 'week')} is tight. This step up wants about six weeks."
+        return "You are one step short on fitness. About six weeks of focused prep closes the gap."
+    if status == "hard":
+        return f"Your training level is the limiting factor, not the trail. Eight focused weeks can close it, and mind {risk}."
+    return "Not enough base or time for this trail yet. Give it a lower-difficulty season first."
+
+
 def assess(trail_name, fitness_label, weeks):
     """Structured readiness for the form."""
     rec = next(t for t in TRAILS.values() if t["name"] == trail_name)
@@ -238,9 +253,8 @@ def readiness_from_text(query: str) -> str:
     try:
         st.session_state["_chat_verdict"] = {
             "status": status, "head": head, "plan": plan,
-            "meta": f"{rec['name']}: {rec['km']} km, {_plural(rec['days'], 'day')}, "
-                    f"{DIFF_WORD[rec['diff']]} difficulty. Your level: {FIT_WORD[fit]}. "
-                    + (f"Time to the hike: {_plural(weeks, 'week')}." if weeks else "No clear timeframe given."),
+            "why": _why(status, weeks, rec["risk"]),
+            "inputs": [rec["name"], FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")],
         }
     except Exception:
         pass
@@ -699,7 +713,7 @@ function verdict(diff,fit,weeks,risk){
     return {s:"cond",h:"Almost ready",why:"You are one step short on fitness. About six weeks of focused prep closes the gap.",
       plan:["Weeks 1-2: three walks a week, 5-8 km easy.","Weeks 3-4: add a light pack (4-6 kg) and one longer weekend hike.","Weeks 5-6: a loaded hike close to a real day on the trail."]};
   }
-  if(weeks>=8) return {s:"hard",h:"Tough but doable",why:`Your training level is the limiting factor, not the trail. Eight focused weeks can close it — mind ${risk}.`,
+  if(weeks>=8) return {s:"hard",h:"Tough but doable",why:`Your training level is the limiting factor, not the trail. Eight focused weeks can close it, and mind ${risk}.`,
     plan:["Weeks 1-3: build a base, 3-4 walks a week, up to 10 km.","Weeks 4-6: pack 6-8 kg, one long hike every week.","Weeks 7-8: two loaded hikes back to back to simulate the hardest day."]};
   return {s:"toosoon",h:"Too soon this time",why:"Not enough base or time for this trail yet. Give it a lower-difficulty season first.",
     plan:["Pick a lower-difficulty trail this season (for example Preikestolen).","Start regular walks and return here when you have 8+ weeks."]};
@@ -729,6 +743,141 @@ document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{
 document.getElementById('go').onclick=run;
 facts();setPct();
 </script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+
+VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}.verdict{margin-top:0 !important}
+  :root{
+    --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#4a5a44;
+    --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#5f7d3f;
+    --line:#e4e1d3; --white:#ffffff; --muted:#8a917f;
+    --ready:#42583f; --cond:#b07d1f; --hard:#a1502f; --toosoon:#3f7286;
+    --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Inter',system-ui,sans-serif; background:var(--bone); color:var(--ink);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    background-image:radial-gradient(1200px 500px at 50% -10%, #f8f7f0 0%, var(--bone) 55%);
+  }
+  .wrap{max-width:600px; margin:0 auto; padding:26px 18px 60px}
+
+  /* hero */
+  .hero{position:relative; height:290px; border-radius:22px; overflow:hidden;
+    box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;}
+  .hero img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 58%}
+  .hero .veil{position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(28,40,28,.28) 0%, rgba(28,40,28,.20) 42%, rgba(28,40,28,.62) 100%)}
+  .loc{position:absolute; top:16px; left:18px; z-index:2; color:#eaeee2; font-size:12.5px;
+    letter-spacing:.03em; font-weight:500; display:flex; align-items:center; gap:6px; text-shadow:0 1px 5px rgba(0,0,0,.5)}
+  .loc .ring{width:12px;height:12px;border:2px solid #eaeee2;border-radius:50%;display:inline-block;opacity:.9}
+  .hero .center{position:relative; z-index:2; text-align:center; padding:0 20px}
+  .brand{font-size:46px; font-weight:800; letter-spacing:-.02em; color:#fff; margin:0; line-height:1;
+    text-shadow:0 2px 18px rgba(0,0,0,.4)}
+  .tag{margin:10px 0 0; font-size:18px; font-weight:500; color:#e7ece0; text-shadow:0 1px 8px rgba(0,0,0,.5)}
+
+  /* segmented */
+  .seg{display:flex; gap:5px; background:var(--bone-2); border:1px solid var(--line);
+    padding:5px; border-radius:14px; margin:18px 0 16px}
+  .seg button{flex:1; border:0; background:transparent; font-family:inherit; font-weight:600; font-size:14.5px;
+    color:var(--ink-soft); padding:10px 12px; border-radius:10px; cursor:pointer; transition:.15s}
+  .seg button.on{background:var(--moss); color:#fff; box-shadow:0 3px 10px rgba(43,63,43,.22)}
+
+  /* card */
+  .card{background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:22px 22px}
+  .field{margin-bottom:18px}
+  .field:last-child{margin-bottom:0}
+  .lbl{font-size:11.5px; font-weight:700; letter-spacing:.10em; text-transform:uppercase; color:var(--moss-bright); margin:0 0 8px}
+
+  /* select */
+  .select{position:relative}
+  select{width:100%; appearance:none; font-family:inherit; font-size:16px; font-weight:600; color:var(--ink);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:13px 42px 13px 14px; cursor:pointer}
+  .select .chev{position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--ink-soft)}
+
+  /* facts */
+  .facts{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px}
+  .chip{font-size:12.5px; font-weight:600; color:var(--ink-soft); background:var(--bone-2);
+    border:1px solid var(--line); border-radius:999px; padding:5px 11px}
+  .facts .risk{width:100%; margin-top:4px; font-size:13px; color:var(--muted)}
+  .facts .risk b{color:var(--ink-soft); font-weight:600}
+
+  /* fitness chips */
+  .toggle{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .toggle button{font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:12px 8px; cursor:pointer; transition:.15s}
+  .toggle button.on{background:var(--moss); color:#fff; border-color:var(--moss)}
+
+  /* slider */
+  .slider-row{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px}
+  .slider-row .val{font-size:16px; font-weight:700; color:var(--ink)}
+  input[type=range]{width:100%; -webkit-appearance:none; height:6px; border-radius:999px; outline:none;
+    background:linear-gradient(90deg,var(--moss) 0%,var(--moss) var(--pct,30%),var(--line) var(--pct,30%),var(--line) 100%)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    background:var(--moss); border:3px solid #fff; box-shadow:0 2px 6px rgba(43,63,43,.35); cursor:pointer}
+
+  /* button */
+  .btn{width:100%; margin-top:20px; border:0; font-family:inherit; font-weight:700; font-size:15.5px; color:#fff;
+    background:var(--moss); padding:15px; border-radius:13px; cursor:pointer; transition:.15s; box-shadow:0 8px 20px rgba(43,63,43,.22)}
+  .btn:hover{background:var(--moss-deep)}
+
+  /* verdict */
+  .verdict{margin-top:16px; background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); overflow:hidden; display:none}
+  .verdict.show{display:block; animation:rise .28s ease}
+  @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+  .verdict .bar{height:5px; background:var(--accent)}
+  .verdict .body{padding:22px}
+  .vhead{display:flex; align-items:center; gap:12px}
+  .emblem{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb, var(--accent) 14%, #fff); color:var(--accent)}
+  .kick{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0}
+  .vtitle{font-size:24px; font-weight:800; letter-spacing:-.01em; color:var(--ink); margin:2px 0 0}
+  .why{margin:12px 0 0; font-size:15px; color:var(--ink-soft)}
+  .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
+    font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
+  .inputs .chip{background:#fff; border-color:var(--line)}
+  .plan{list-style:none; padding:0; margin:16px 0 0}
+  .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
+  .plan svg{flex:none; margin-top:2px; color:var(--accent)}
+  .foot{display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:15px; border-top:1px solid var(--line); flex-wrap:wrap}
+  .badge{font-size:12px; font-weight:600; color:var(--moss); background:#eef2e8; border:1px solid #dfe6d6; border-radius:999px; padding:5px 11px; display:inline-flex; align-items:center; gap:6px}
+  .disc{font-size:12.5px; color:var(--muted); margin:0}
+
+  .note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 4px 0}
+  .ask-lead{margin:0 0 14px;font-size:14.5px;color:var(--ink-soft)}
+  .ask-box{display:flex;gap:9px}
+  .ask-box input{flex:1;font-family:inherit;font-size:15px;color:var(--ink);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:13px 14px;outline:none}
+  .ask-box .btn{width:auto;margin:0;white-space:nowrap;box-shadow:none;padding:13px 20px}
+  .examples{display:flex;flex-direction:column;gap:8px}
+  .examples button{text-align:left;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .examples button:hover{background:var(--bone);border-color:#cfd3c2}
+</style></head><body><div class="wrap" style="padding:0"><div class="verdict show" style="--accent:__ACCENT__">
+  <div class="bar"></div>
+  <div class="body">
+    <div class="vhead">
+      <div class="emblem">__ICON__</div>
+      <div><p class="kick">Verdict</p><h2 class="vtitle">__HEAD__</h2></div>
+    </div>
+    <p class="why">__WHY__</p>
+    <p class="computed">Computed from</p>
+    <div class="inputs">__INPUTS__</div>
+    <ul class="plan">__PLAN__</ul>
+    <div class="foot">
+      <span class="badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</span>
+      <p class="disc">Approximate fitness assessment, not a medical opinion.</p>
+    </div>
+  </div>
+</div></div><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+
+_VICON = {
+ "ready": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
+ "cond": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+ "hard": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 20h18L12 4z"/></svg>',
+ "toosoon": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
+}
+_CHK = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>'
 
 # ---------- Header ----------
 _hero = _hero_b64()
@@ -761,10 +910,8 @@ with tab_chat:
         AVATARS = {"user": "🥾", "assistant": "🏔️"}
         EXAMPLES = [
             "Am I ready for Laugavegur in 6 weeks? I don't train.",
-            "Fimmvorduhals in 6 weeks, sometimes active.",
             "Trolltunga in 4 weeks, sometimes active.",
             "Besseggen in 8 weeks, I train regularly.",
-            "Preikestolen in 3 weeks, I don't train.",
         ]
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -841,19 +988,15 @@ with tab_chat:
             box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
             v = m.get("verdict")
             if v:
-                plan_html = "".join(f"<li>{s}</li>" for s in v["plan"])
-                box.markdown(
-                    f'<div class="card {_VERDICT_CSS.get(v["status"], "verdict-unknown")}">'
-                    '<div class="verdict-kicker">Verdict</div>'
-                    f'<div class="verdict-head">{v["head"]}</div>'
-                    '<span class="badge">Carefully assessed, not a guess</span>'
-                    f'<div class="note">{v["meta"]}</div>'
-                    f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul>'
-                    '<div class="note" style="margin-top:0.6rem">This is an approximate fitness '
-                    "assessment, not a medical opinion.</div>"
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
+                acc = {"ready": "#42583f", "cond": "#b07d1f", "hard": "#a1502f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
+                inputs_html = "".join(f'<span class="chip">{x}</span>' for x in v.get("inputs", []))
+                plan_html = "".join(f'<li>{_CHK}<span>{s}</span></li>' for s in v["plan"])
+                card = (VERDICT_CARD
+                        .replace("__ACCENT__", acc).replace("__ICON__", _VICON.get(v["status"], ""))
+                        .replace("__HEAD__", v["head"]).replace("__WHY__", v.get("why", ""))
+                        .replace("__INPUTS__", inputs_html).replace("__PLAN__", plan_html))
+                with box:
+                    components.html(card, height=470, scrolling=False)
                 if m.get("show_text"):
                     box.markdown(m["content"])
             else:
