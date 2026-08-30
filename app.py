@@ -207,6 +207,18 @@ def readiness_from_text(query: str) -> str:
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
     tail = f" You have {weeks} weeks." if weeks else ""
     plan_txt = "\n".join(f"- {s}" for s in plan)
+    # Stash the structured verdict so the chat can render the same card as the
+    # Quick check tab. Best effort: if session state is unreachable (e.g. the
+    # tool ran outside the script thread), the chat falls back to the text.
+    try:
+        st.session_state["_chat_verdict"] = {
+            "status": status, "head": head, "plan": plan,
+            "meta": f"{rec['name']}: {rec['km']} km, {rec['days']} day(s), "
+                    f"{DIFF_WORD[rec['diff']]} difficulty. Your level: {FIT_WORD[fit]}. "
+                    + (f"Time to the hike: {weeks} weeks." if weeks else "No clear timeframe given."),
+        }
+    except Exception:
+        pass
     return (f"{rec['name']}, difficulty {DIFF_WORD[rec['diff']]}, your level {FIT_WORD[fit]}.{tail}\n\n"
             f"**{head}**\n\nPlan:\n{plan_txt}\n\n"
             f"*This is an approximate fitness assessment, not a medical opinion.*")
@@ -446,6 +458,7 @@ with tab_chat:
         query = (typed.strip() if asked and typed.strip() else None) or example_q
         if query:
             st.session_state.messages.append({"role": "user", "content": query})
+            st.session_state.pop("_chat_verdict", None)
             spinner_text = "Reasoning through it..." if use_team else "Thinking..."
             with st.spinner(spinner_text):
                 try:
@@ -455,8 +468,37 @@ with tab_chat:
                 except Exception as e:
                     answer = ("Something went wrong reaching the model. This is usually the free-tier "
                               f"limit, try again in a moment. ({type(e).__name__})")
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+            msg = {"role": "assistant", "content": answer}
+            verdict = st.session_state.pop("_chat_verdict", None)
+            if verdict:
+                # The tool computed a verdict this turn: show it as the same card
+                # the Quick check tab uses. In reasoning mode the model's own
+                # write-up stays visible below the card.
+                msg["verdict"] = verdict
+                msg["show_text"] = bool(use_team)
+            st.session_state.messages.append(msg)
 
         # 4) Answer(s) render below the input, newest last.
+        _VERDICT_CSS = {"ready": "verdict-ready", "cond": "verdict-cond",
+                        "hard": "verdict-hard", "toosoon": "verdict-toosoon"}
         for m in st.session_state.messages:
-            st.chat_message(m["role"], avatar=AVATARS[m["role"]]).markdown(m["content"])
+            box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
+            v = m.get("verdict")
+            if v:
+                plan_html = "".join(f"<li>{s}</li>" for s in v["plan"])
+                box.markdown(
+                    f'<div class="card {_VERDICT_CSS.get(v["status"], "verdict-unknown")}">'
+                    '<div class="verdict-kicker">Verdict</div>'
+                    f'<div class="verdict-head">{v["head"]}</div>'
+                    '<span class="badge">Carefully assessed, not a guess</span>'
+                    f'<div class="note">{v["meta"]}</div>'
+                    f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul>'
+                    '<div class="note" style="margin-top:0.6rem">This is an approximate fitness '
+                    "assessment, not a medical opinion.</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                if m.get("show_text"):
+                    box.markdown(m["content"])
+            else:
+                box.markdown(m["content"])
