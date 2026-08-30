@@ -121,6 +121,11 @@ FIT_MAP = {"I don't train": 1, "Sometimes active": 2, "I train regularly": 3}
 FIT_WORD = {1: "low", 2: "moderate", 3: "high"}
 
 
+def _plural(n, word):
+    """'1 day', '4 days', '1 week', '8 weeks'."""
+    return f"{n} {word}" + ("" if n == 1 else "s")
+
+
 def _verdict(diff, fit, weeks, risk):
     gap = diff - fit
     if gap <= 0:
@@ -161,8 +166,8 @@ def assess(trail_name, fitness_label, weeks):
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
     return {
         "status": status, "head": head, "plan": plan, "risk": rec["risk"],
-        "meta": f"{rec['name']}: {rec['km']} km, {rec['days']} day(s), {DIFF_WORD[rec['diff']]} difficulty. "
-                f"Your level: {FIT_WORD[fit]}. Time to the hike: {weeks} weeks.",
+        "meta": f"{rec['name']}: {rec['km']} km, {_plural(rec['days'], 'day')}, {DIFF_WORD[rec['diff']]} difficulty. "
+                f"Your level: {FIT_WORD[fit]}. Time to the hike: {_plural(weeks, 'week')}.",
     }
 
 
@@ -212,7 +217,7 @@ def readiness_from_text(query: str) -> str:
                 "sometimes, or not at all? Then I can give you an honest verdict.")
     weeks = _weeks_from_text(q)
     status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
-    tail = f" You have {weeks} weeks." if weeks else ""
+    tail = f" You have {_plural(weeks, 'week')}." if weeks else ""
     plan_txt = "\n".join(f"- {s}" for s in plan)
     # Stash the structured verdict so the chat can render the same card as the
     # Quick check tab. Best effort: if session state is unreachable (e.g. the
@@ -220,9 +225,9 @@ def readiness_from_text(query: str) -> str:
     try:
         st.session_state["_chat_verdict"] = {
             "status": status, "head": head, "plan": plan,
-            "meta": f"{rec['name']}: {rec['km']} km, {rec['days']} day(s), "
+            "meta": f"{rec['name']}: {rec['km']} km, {_plural(rec['days'], 'day')}, "
                     f"{DIFF_WORD[rec['diff']]} difficulty. Your level: {FIT_WORD[fit]}. "
-                    + (f"Time to the hike: {weeks} weeks." if weeks else "No clear timeframe given."),
+                    + (f"Time to the hike: {_plural(weeks, 'week')}." if weeks else "No clear timeframe given."),
         }
     except Exception:
         pass
@@ -263,7 +268,11 @@ def get_agent():
             "exact training level and timeframe. Never drop, upgrade, or soften the training level.",
             "Report the verdict readiness_score returns exactly. Never make it more optimistic than the tool.",
             "You are not a doctor. For injuries or illness, tell the person to see a doctor.",
-            "Never invent trail facts. If a trail is unknown, say so honestly.",
+            "Never invent trail facts.",
+            "If readiness_score refuses (an unknown trail, or a request for missing details), report that "
+            "refusal and stop. Do not add your own readiness estimate, difficulty guess, or training "
+            "timeline for an uncovered trail. Only point the user to the trails BeReady covers: "
+            "Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, Preikestolen.",
             "Be warm, concise, and specific.",
         ],
         markdown=True,
@@ -331,6 +340,7 @@ def get_team():
         instructions=[
             "Turn the Researcher's facts into a clear, honest recommendation.",
             "Separate facts from interpretation. Do not invent numbers or trail data.",
+            "For a trail readiness_score does not cover, do not estimate readiness or difficulty. Say it is not covered and stop.",
         ],
     )
     return Team(
@@ -343,7 +353,9 @@ def get_team():
             "Delegate fact-finding to the Researcher and interpretation to the Analyst, then give one clear answer.",
             "Base every readiness verdict on readiness_score. Never compute or invent the verdict yourself.",
             "Open with the exact verdict wording that readiness_score returns (for example, You're ready, or Too soon), then add context. Do not soften, reword, or make the verdict more optimistic than the tool.",
-            "If the trail is unknown, refuse honestly and ask for verified data. Do not guess.",
+            "If readiness_score refuses (an unknown trail, or missing details), report that refusal and "
+            "stop. Do not add your own readiness estimate, difficulty guess, or training timeline for an "
+            "uncovered trail. Only point the user to the trails BeReady covers.",
             "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
             "Be warm, concise, and specific.",
         ],
