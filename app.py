@@ -914,9 +914,9 @@ with tab_chat:
         os.environ["GOOGLE_API_KEY"] = api_key
         AVATARS = {"user": "\U0001F97E", "assistant": "\U0001F3D4️"}
         STARTERS = [
-            ("Laugavegur · 6 wks · don't train", "Am I ready for Laugavegur in 6 weeks? I don't train."),
-            ("Trolltunga · 4 wks · sometimes", "Trolltunga in 4 weeks, sometimes active."),
-            ("Besseggen · 8 wks · regularly", "Besseggen in 8 weeks, I train regularly."),
+            "Laugavegur in 6 weeks, I don't train",
+            "Trolltunga in 4 weeks, I train sometimes",
+            "Besseggen in 8 weeks, I train regularly",
         ]
         if "messages" not in st.session_state:
             st.session_state.messages = []
@@ -930,9 +930,9 @@ with tab_chat:
             with st.chat_message("assistant", avatar=AVATARS["assistant"]):
                 st.markdown("Hi, I'm BeReady. Tell me a trail, how you train, and how many "
                             "weeks you have, and I'll give you an honest verdict.")
-            _cols = st.columns(3)
-            for _i, (_label, _q) in enumerate(STARTERS):
-                if _cols[_i].button(_label, key=f"st_{_i}", use_container_width=True):
+            st.caption("Try asking")
+            for _i, _q in enumerate(STARTERS):
+                if st.button(_q, key=f"st_{_i}", use_container_width=True):
                     starter_q = _q
 
         # The conversation so far, newest last.
