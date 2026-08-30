@@ -300,6 +300,9 @@ def get_agent():
             "refusal and stop. Do not add your own readiness estimate, difficulty guess, or training "
             "timeline for an uncovered trail. Only point the user to the trails BeReady covers: "
             "Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, Preikestolen.",
+            "If a message is not a readiness question (no trail, or unclear), do not re-introduce "
+            "yourself or list the trails. Reply with exactly this one line and nothing else: "
+            "I work from three things: the trail, your training level, and the weeks you have. Tell me those.",
             "Be warm, concise, and specific.",
         ],
         markdown=True,
@@ -384,6 +387,9 @@ def get_team():
             "stop. Do not add your own readiness estimate, difficulty guess, or training timeline for an "
             "uncovered trail. Only point the user to the trails BeReady covers.",
             "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
+            "If a message is not a readiness question (no trail, or unclear), do not re-introduce "
+            "yourself or list the trails. Reply with exactly this one line and nothing else: "
+            "I work from three things: the trail, your training level, and the weeks you have. Tell me those.",
             "Be warm, concise, and specific.",
         ],
         markdown=True,
