@@ -907,7 +907,7 @@ with tab_chat:
         )
     else:
         os.environ["GOOGLE_API_KEY"] = api_key
-        AVATARS = {"user": "🥾", "assistant": "🏔️"}
+        AVATARS = {"user": "\U0001F97E", "assistant": "\U0001F3D4️"}
         EXAMPLES = [
             "Am I ready for Laugavegur in 6 weeks? I don't train.",
             "Trolltunga in 4 weeks, sometimes active.",
@@ -916,74 +916,24 @@ with tab_chat:
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        # 1) Input first: a prominent ask box at the top (one-question tool, not a chat).
-        with st.form("ask", clear_on_submit=True):
-            typed = st.text_input(
-                "Your question", placeholder="Am I ready for Besseggen in 8 weeks?",
-                label_visibility="collapsed",
-            )
-            asked = st.form_submit_button("Ask BeReady")
-
-        # 2) Example starters double as the coverage list: the five trails we cover.
-        st.caption("The trails we cover, tap to ask:")
-        example_q = None
-        for q in EXAMPLES:
-            if st.button(q, key=f"ex_{q}", use_container_width=True):
-                example_q = q
-
-        # If the last answer asked for a training level, offer it inline so the user can
-        # continue without scrolling up or retyping the trail and weeks.
-        followup_q = None
-        _msgs = st.session_state.get("messages", [])
-        if _msgs and _msgs[-1].get("needs_fitness"):
-            base = _msgs[-1]["needs_fitness"]
-            st.caption("Your training level:")
-            fc1, fc2, fc3 = st.columns(3)
-            if fc1.button("I don't train", key="fq1", use_container_width=True):
-                followup_q = f"{base} I don't train."
-            if fc2.button("Sometimes active", key="fq2", use_container_width=True):
-                followup_q = f"{base} I sometimes train."
-            if fc3.button("I train regularly", key="fq3", use_container_width=True):
-                followup_q = f"{base} I train regularly."
-
-        # 3) Optional look behind the scenes. Same verdict, just shows the reasoning.
+        # Optional look behind the scenes: same verdict, just shows the reasoning.
         with st.expander("How BeReady answers"):
             st.caption("Same verdict either way. Turn this on to see the reasoning behind "
                        "the answer, which takes a bit longer.")
             use_team = st.toggle("Show the reasoning")
 
-        query = (typed.strip() if asked and typed.strip() else None) or example_q or followup_q
-        if query:
-            st.session_state.messages.append({"role": "user", "content": query})
-            st.session_state.pop("_chat_verdict", None)
-            st.session_state.pop("_needs_fitness", None)
-            st.session_state.pop("_fitness_query", None)
-            spinner_text = "Reasoning through it..." if use_team else "Thinking..."
-            with st.spinner(spinner_text):
-                try:
-                    runner = get_team() if use_team else get_agent()
-                    resp = runner.run(query)
-                    answer = getattr(resp, "content", None) or str(resp)
-                except Exception as e:
-                    answer = ("Something went wrong reaching the model. This is usually the free-tier "
-                              f"limit, try again in a moment. ({type(e).__name__})")
-            msg = {"role": "assistant", "content": answer}
-            verdict = st.session_state.pop("_chat_verdict", None)
-            if verdict:
-                # The tool computed a verdict this turn: show it as the same card
-                # the Quick check tab uses. In reasoning mode the model's own
-                # write-up stays visible below the card.
-                msg["verdict"] = verdict
-                msg["show_text"] = bool(use_team)
-            needs_fit = st.session_state.pop("_needs_fitness", False)
-            fit_query = st.session_state.pop("_fitness_query", None)
-            if needs_fit and fit_query:
-                msg["needs_fitness"] = fit_query
-            st.session_state.messages.append(msg)
+        # Empty state: a friendly opener plus a few conversation starters.
+        starter_q = None
+        if not st.session_state.messages:
+            with st.chat_message("assistant", avatar=AVATARS["assistant"]):
+                st.markdown("Hi, I'm BeReady. Tell me a trail, how you train, and how many "
+                            "weeks you have, and I'll give you an honest verdict.")
+            st.caption("Try one:")
+            for q in EXAMPLES:
+                if st.button(q, key=f"st_{q}", use_container_width=True):
+                    starter_q = q
 
-        # 4) Answer(s) render below the input, newest last.
-        _VERDICT_CSS = {"ready": "verdict-ready", "cond": "verdict-cond",
-                        "hard": "verdict-hard", "toosoon": "verdict-toosoon"}
+        # The conversation so far, newest last.
         for m in st.session_state.messages:
             box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
             v = m.get("verdict")
@@ -1001,3 +951,46 @@ with tab_chat:
                     box.markdown(m["content"])
             else:
                 box.markdown(m["content"])
+
+        # If the last answer asked for a training level, offer it inline in the thread.
+        followup_q = None
+        _msgs = st.session_state.messages
+        if _msgs and _msgs[-1].get("needs_fitness"):
+            base = _msgs[-1]["needs_fitness"]
+            st.caption("Your training level:")
+            fc1, fc2, fc3 = st.columns(3)
+            if fc1.button("I don't train", key="fq1", use_container_width=True):
+                followup_q = f"{base} I don't train."
+            if fc2.button("Sometimes active", key="fq2", use_container_width=True):
+                followup_q = f"{base} I sometimes train."
+            if fc3.button("I train regularly", key="fq3", use_container_width=True):
+                followup_q = f"{base} I train regularly."
+
+        # Pinned input at the bottom, like a real chat.
+        typed = st.chat_input("Ask about a trail in Iceland or Norway...")
+        query = (typed.strip() if typed and typed.strip() else None) or starter_q or followup_q
+        if query:
+            st.session_state.messages.append({"role": "user", "content": query})
+            st.session_state.pop("_chat_verdict", None)
+            st.session_state.pop("_needs_fitness", None)
+            st.session_state.pop("_fitness_query", None)
+            spinner_text = "Reasoning through it..." if use_team else "Thinking..."
+            with st.spinner(spinner_text):
+                try:
+                    runner = get_team() if use_team else get_agent()
+                    resp = runner.run(query)
+                    answer = getattr(resp, "content", None) or str(resp)
+                except Exception as e:
+                    answer = ("Something went wrong reaching the model. This is usually the free-tier "
+                              f"limit, try again in a moment. ({type(e).__name__})")
+            msg = {"role": "assistant", "content": answer}
+            verdict = st.session_state.pop("_chat_verdict", None)
+            if verdict:
+                msg["verdict"] = verdict
+                msg["show_text"] = bool(use_team)
+            needs_fit = st.session_state.pop("_needs_fitness", False)
+            fit_query = st.session_state.pop("_fitness_query", None)
+            if needs_fit and fit_query:
+                msg["needs_fitness"] = fit_query
+            st.session_state.messages.append(msg)
+            st.rerun()
