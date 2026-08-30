@@ -17,6 +17,7 @@ import re
 import base64
 import pathlib
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="BeReady", page_icon="🏔️", layout="centered")
 
@@ -378,67 +379,366 @@ def get_team():
     )
 
 
+HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}
+  :root{
+    --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#4a5a44;
+    --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#5f7d3f;
+    --line:#e4e1d3; --white:#ffffff; --muted:#8a917f;
+    --ready:#42583f; --cond:#b07d1f; --hard:#a1502f; --toosoon:#3f7286;
+    --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Inter',system-ui,sans-serif; background:var(--bone); color:var(--ink);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    background-image:radial-gradient(1200px 500px at 50% -10%, #f8f7f0 0%, var(--bone) 55%);
+  }
+  .wrap{max-width:600px; margin:0 auto; padding:26px 18px 60px}
+
+  /* hero */
+  .hero{position:relative; height:290px; border-radius:22px; overflow:hidden;
+    box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;}
+  .hero img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 58%}
+  .hero .veil{position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(28,40,28,.28) 0%, rgba(28,40,28,.20) 42%, rgba(28,40,28,.62) 100%)}
+  .loc{position:absolute; top:16px; left:18px; z-index:2; color:#eaeee2; font-size:12.5px;
+    letter-spacing:.03em; font-weight:500; display:flex; align-items:center; gap:6px; text-shadow:0 1px 5px rgba(0,0,0,.5)}
+  .loc .ring{width:12px;height:12px;border:2px solid #eaeee2;border-radius:50%;display:inline-block;opacity:.9}
+  .hero .center{position:relative; z-index:2; text-align:center; padding:0 20px}
+  .brand{font-size:46px; font-weight:800; letter-spacing:-.02em; color:#fff; margin:0; line-height:1;
+    text-shadow:0 2px 18px rgba(0,0,0,.4)}
+  .tag{margin:10px 0 0; font-size:18px; font-weight:500; color:#e7ece0; text-shadow:0 1px 8px rgba(0,0,0,.5)}
+
+  /* segmented */
+  .seg{display:flex; gap:5px; background:var(--bone-2); border:1px solid var(--line);
+    padding:5px; border-radius:14px; margin:18px 0 16px}
+  .seg button{flex:1; border:0; background:transparent; font-family:inherit; font-weight:600; font-size:14.5px;
+    color:var(--ink-soft); padding:10px 12px; border-radius:10px; cursor:pointer; transition:.15s}
+  .seg button.on{background:var(--moss); color:#fff; box-shadow:0 3px 10px rgba(43,63,43,.22)}
+
+  /* card */
+  .card{background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:22px 22px}
+  .field{margin-bottom:18px}
+  .field:last-child{margin-bottom:0}
+  .lbl{font-size:11.5px; font-weight:700; letter-spacing:.10em; text-transform:uppercase; color:var(--moss-bright); margin:0 0 8px}
+
+  /* select */
+  .select{position:relative}
+  select{width:100%; appearance:none; font-family:inherit; font-size:16px; font-weight:600; color:var(--ink);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:13px 42px 13px 14px; cursor:pointer}
+  .select .chev{position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--ink-soft)}
+
+  /* facts */
+  .facts{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px}
+  .chip{font-size:12.5px; font-weight:600; color:var(--ink-soft); background:var(--bone-2);
+    border:1px solid var(--line); border-radius:999px; padding:5px 11px}
+  .facts .risk{width:100%; margin-top:4px; font-size:13px; color:var(--muted)}
+  .facts .risk b{color:var(--ink-soft); font-weight:600}
+
+  /* fitness chips */
+  .toggle{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .toggle button{font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:12px 8px; cursor:pointer; transition:.15s}
+  .toggle button.on{background:var(--moss); color:#fff; border-color:var(--moss)}
+
+  /* slider */
+  .slider-row{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px}
+  .slider-row .val{font-size:16px; font-weight:700; color:var(--ink)}
+  input[type=range]{width:100%; -webkit-appearance:none; height:6px; border-radius:999px; outline:none;
+    background:linear-gradient(90deg,var(--moss) 0%,var(--moss) var(--pct,30%),var(--line) var(--pct,30%),var(--line) 100%)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    background:var(--moss); border:3px solid #fff; box-shadow:0 2px 6px rgba(43,63,43,.35); cursor:pointer}
+
+  /* button */
+  .btn{width:100%; margin-top:20px; border:0; font-family:inherit; font-weight:700; font-size:15.5px; color:#fff;
+    background:var(--moss); padding:15px; border-radius:13px; cursor:pointer; transition:.15s; box-shadow:0 8px 20px rgba(43,63,43,.22)}
+  .btn:hover{background:var(--moss-deep)}
+
+  /* verdict */
+  .verdict{margin-top:16px; background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); overflow:hidden; display:none}
+  .verdict.show{display:block; animation:rise .28s ease}
+  @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+  .verdict .bar{height:5px; background:var(--accent)}
+  .verdict .body{padding:22px}
+  .vhead{display:flex; align-items:center; gap:12px}
+  .emblem{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb, var(--accent) 14%, #fff); color:var(--accent)}
+  .kick{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0}
+  .vtitle{font-size:24px; font-weight:800; letter-spacing:-.01em; color:var(--ink); margin:2px 0 0}
+  .why{margin:12px 0 0; font-size:15px; color:var(--ink-soft)}
+  .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
+    font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
+  .inputs .chip{background:#fff; border-color:var(--line)}
+  .plan{list-style:none; padding:0; margin:16px 0 0}
+  .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
+  .plan svg{flex:none; margin-top:2px; color:var(--accent)}
+  .foot{display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:15px; border-top:1px solid var(--line); flex-wrap:wrap}
+  .badge{font-size:12px; font-weight:600; color:var(--moss); background:#eef2e8; border:1px solid #dfe6d6; border-radius:999px; padding:5px 11px; display:inline-flex; align-items:center; gap:6px}
+  .disc{font-size:12.5px; color:var(--muted); margin:0}
+
+  .note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 4px 0}
+  .ask-lead{margin:0 0 14px;font-size:14.5px;color:var(--ink-soft)}
+  .ask-box{display:flex;gap:9px}
+  .ask-box input{flex:1;font-family:inherit;font-size:15px;color:var(--ink);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:13px 14px;outline:none}
+  .ask-box .btn{width:auto;margin:0;white-space:nowrap;box-shadow:none;padding:13px 20px}
+  .examples{display:flex;flex-direction:column;gap:8px}
+  .examples button{text-align:left;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .examples button:hover{background:var(--bone);border-color:#cfd3c2}
+</style></head><body><div class="hero">
+    <img src="data:image/jpeg;base64,__HERO__" alt="Icelandic highlands">
+    <div class="veil"></div>
+    <div class="loc"><span class="ring"></span> Th&oacute;rsm&ouml;rk, Iceland</div>
+    <div class="center">
+      <h1 class="brand">BeReady</h1>
+      <p class="tag">Can you handle this trail?</p>
+    </div>
+  </div><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+
+QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}
+  :root{
+    --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#4a5a44;
+    --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#5f7d3f;
+    --line:#e4e1d3; --white:#ffffff; --muted:#8a917f;
+    --ready:#42583f; --cond:#b07d1f; --hard:#a1502f; --toosoon:#3f7286;
+    --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Inter',system-ui,sans-serif; background:var(--bone); color:var(--ink);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+    background-image:radial-gradient(1200px 500px at 50% -10%, #f8f7f0 0%, var(--bone) 55%);
+  }
+  .wrap{max-width:600px; margin:0 auto; padding:26px 18px 60px}
+
+  /* hero */
+  .hero{position:relative; height:290px; border-radius:22px; overflow:hidden;
+    box-shadow:var(--shadow); display:flex; align-items:center; justify-content:center;}
+  .hero img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 58%}
+  .hero .veil{position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(28,40,28,.28) 0%, rgba(28,40,28,.20) 42%, rgba(28,40,28,.62) 100%)}
+  .loc{position:absolute; top:16px; left:18px; z-index:2; color:#eaeee2; font-size:12.5px;
+    letter-spacing:.03em; font-weight:500; display:flex; align-items:center; gap:6px; text-shadow:0 1px 5px rgba(0,0,0,.5)}
+  .loc .ring{width:12px;height:12px;border:2px solid #eaeee2;border-radius:50%;display:inline-block;opacity:.9}
+  .hero .center{position:relative; z-index:2; text-align:center; padding:0 20px}
+  .brand{font-size:46px; font-weight:800; letter-spacing:-.02em; color:#fff; margin:0; line-height:1;
+    text-shadow:0 2px 18px rgba(0,0,0,.4)}
+  .tag{margin:10px 0 0; font-size:18px; font-weight:500; color:#e7ece0; text-shadow:0 1px 8px rgba(0,0,0,.5)}
+
+  /* segmented */
+  .seg{display:flex; gap:5px; background:var(--bone-2); border:1px solid var(--line);
+    padding:5px; border-radius:14px; margin:18px 0 16px}
+  .seg button{flex:1; border:0; background:transparent; font-family:inherit; font-weight:600; font-size:14.5px;
+    color:var(--ink-soft); padding:10px 12px; border-radius:10px; cursor:pointer; transition:.15s}
+  .seg button.on{background:var(--moss); color:#fff; box-shadow:0 3px 10px rgba(43,63,43,.22)}
+
+  /* card */
+  .card{background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); padding:22px 22px}
+  .field{margin-bottom:18px}
+  .field:last-child{margin-bottom:0}
+  .lbl{font-size:11.5px; font-weight:700; letter-spacing:.10em; text-transform:uppercase; color:var(--moss-bright); margin:0 0 8px}
+
+  /* select */
+  .select{position:relative}
+  select{width:100%; appearance:none; font-family:inherit; font-size:16px; font-weight:600; color:var(--ink);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:13px 42px 13px 14px; cursor:pointer}
+  .select .chev{position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--ink-soft)}
+
+  /* facts */
+  .facts{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px}
+  .chip{font-size:12.5px; font-weight:600; color:var(--ink-soft); background:var(--bone-2);
+    border:1px solid var(--line); border-radius:999px; padding:5px 11px}
+  .facts .risk{width:100%; margin-top:4px; font-size:13px; color:var(--muted)}
+  .facts .risk b{color:var(--ink-soft); font-weight:600}
+
+  /* fitness chips */
+  .toggle{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .toggle button{font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft);
+    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:12px 8px; cursor:pointer; transition:.15s}
+  .toggle button.on{background:var(--moss); color:#fff; border-color:var(--moss)}
+
+  /* slider */
+  .slider-row{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px}
+  .slider-row .val{font-size:16px; font-weight:700; color:var(--ink)}
+  input[type=range]{width:100%; -webkit-appearance:none; height:6px; border-radius:999px; outline:none;
+    background:linear-gradient(90deg,var(--moss) 0%,var(--moss) var(--pct,30%),var(--line) var(--pct,30%),var(--line) 100%)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    background:var(--moss); border:3px solid #fff; box-shadow:0 2px 6px rgba(43,63,43,.35); cursor:pointer}
+
+  /* button */
+  .btn{width:100%; margin-top:20px; border:0; font-family:inherit; font-weight:700; font-size:15.5px; color:#fff;
+    background:var(--moss); padding:15px; border-radius:13px; cursor:pointer; transition:.15s; box-shadow:0 8px 20px rgba(43,63,43,.22)}
+  .btn:hover{background:var(--moss-deep)}
+
+  /* verdict */
+  .verdict{margin-top:16px; background:var(--white); border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow); overflow:hidden; display:none}
+  .verdict.show{display:block; animation:rise .28s ease}
+  @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+  .verdict .bar{height:5px; background:var(--accent)}
+  .verdict .body{padding:22px}
+  .vhead{display:flex; align-items:center; gap:12px}
+  .emblem{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb, var(--accent) 14%, #fff); color:var(--accent)}
+  .kick{font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0}
+  .vtitle{font-size:24px; font-weight:800; letter-spacing:-.01em; color:var(--ink); margin:2px 0 0}
+  .why{margin:12px 0 0; font-size:15px; color:var(--ink-soft)}
+  .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
+    font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
+  .inputs .chip{background:#fff; border-color:var(--line)}
+  .plan{list-style:none; padding:0; margin:16px 0 0}
+  .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
+  .plan svg{flex:none; margin-top:2px; color:var(--accent)}
+  .foot{display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:15px; border-top:1px solid var(--line); flex-wrap:wrap}
+  .badge{font-size:12px; font-weight:600; color:var(--moss); background:#eef2e8; border:1px solid #dfe6d6; border-radius:999px; padding:5px 11px; display:inline-flex; align-items:center; gap:6px}
+  .disc{font-size:12.5px; color:var(--muted); margin:0}
+
+  .note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 4px 0}
+  .ask-lead{margin:0 0 14px;font-size:14.5px;color:var(--ink-soft)}
+  .ask-box{display:flex;gap:9px}
+  .ask-box input{flex:1;font-family:inherit;font-size:15px;color:var(--ink);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:13px 14px;outline:none}
+  .ask-box .btn{width:auto;margin:0;white-space:nowrap;box-shadow:none;padding:13px 20px}
+  .examples{display:flex;flex-direction:column;gap:8px}
+  .examples button{text-align:left;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .examples button:hover{background:var(--bone);border-color:#cfd3c2}
+</style></head><body><div class="wrap" style="padding:0"><div class="card" id="panel">
+    <div class="field">
+      <p class="lbl">Trail</p>
+      <div class="select">
+        <select id="trail">
+          <option>Laugavegur (Iceland)</option>
+          <option>Fimmvorduhals (Iceland)</option>
+          <option>Trolltunga (Norway)</option>
+          <option>Besseggen (Norway)</option>
+          <option>Preikestolen (Norway)</option>
+        </select>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="facts" id="facts"></div>
+    </div>
+
+    <div class="field">
+      <p class="lbl">Fitness level</p>
+      <div class="toggle" id="fit">
+        <button class="on" data-v="1">I don't train</button>
+        <button data-v="2">Sometimes active</button>
+        <button data-v="3">I train regularly</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="slider-row"><p class="lbl" style="margin:0">Weeks until the hike</p><span class="val" id="wval">8 weeks</span></div>
+      <input type="range" id="weeks" min="1" max="24" value="8">
+    </div>
+
+    <button class="btn" id="go">Check my readiness</button>
+  </div>
+
+  <div class="verdict" id="verdict">
+    <div class="bar"></div>
+    <div class="body">
+      <div class="vhead">
+        <div class="emblem" id="emblem"></div>
+        <div>
+          <p class="kick" id="kick">Verdict</p>
+          <h2 class="vtitle" id="vtitle"></h2>
+        </div>
+      </div>
+      <p class="why" id="why"></p>
+      <p class="computed">Computed from</p>
+      <div class="inputs" id="vinputs"></div>
+      <ul class="plan" id="plan"></ul>
+      <div class="foot">
+        <span class="badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>
+          Computed, not guessed
+        </span>
+        <p class="disc">Approximate fitness assessment, not a medical opinion.</p>
+      </div>
+    </div>
+  </div><p class="note">Five trails in Iceland and Norway for now, more coming.</p></div><script>
+const TRAILS={
+ "Laugavegur (Iceland)":{km:55,days:4,diff:3,risk:"long hiking days four days in a row"},
+ "Fimmvorduhals (Iceland)":{km:25,days:1,diff:3,risk:"a steep, long descent that stresses the knees"},
+ "Trolltunga (Norway)":{km:28,days:1,diff:3,risk:"a long day with big elevation gain"},
+ "Besseggen (Norway)":{km:14,days:1,diff:2,risk:"a sharp, exposed ridge"},
+ "Preikestolen (Norway)":{km:8,days:1,diff:1,risk:"a moderate climb on a popular trail"},
+};
+const DIFF={1:"Low",2:"Moderate",3:"High"};
+const FITWORD={1:"not training",2:"sometimes active",3:"training regularly"};
+let fit=1;
+
+const ICON={
+ ready:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
+ cond:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+ hard:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 20h18L12 4z"/></svg>',
+ toosoon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
+};
+const ACC={ready:"var(--ready)",cond:"var(--cond)",hard:"var(--hard)",toosoon:"var(--toosoon)"};
+
+function facts(){
+  const t=TRAILS[trail.value];
+  document.getElementById('facts').innerHTML=
+    `<span class="chip">${t.km} km</span><span class="chip">${t.days} day${t.days>1?'s':''}</span>`+
+    `<span class="chip">${DIFF[t.diff]} difficulty</span>`+
+    `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;
+}
+function verdict(diff,fit,weeks,risk){
+  const gap=diff-fit;
+  if(gap<=0) return {s:"ready",h:"You're ready",why:"Your fitness matches this trail's demands. Keep it up and do one trial hike with a full pack.",
+    plan:["Hold your current activity level until the start.","One trial hike with a loaded pack to check boots and gear."]};
+  if(gap===1){
+    if(weeks<6) return {s:"cond",h:"Almost ready",why:`You are one step short, and ${weeks} week${weeks>1?'s':''} is tight. This step up wants about six weeks.`,
+      plan:["Start now: three to four walks a week with a light pack (4-6 kg).","One longer weekend hike each week toward a real day on the trail.","If you can't add time, pick an easier trail this season."]};
+    return {s:"cond",h:"Almost ready",why:"You are one step short on fitness. About six weeks of focused prep closes the gap.",
+      plan:["Weeks 1-2: three walks a week, 5-8 km easy.","Weeks 3-4: add a light pack (4-6 kg) and one longer weekend hike.","Weeks 5-6: a loaded hike close to a real day on the trail."]};
+  }
+  if(weeks>=8) return {s:"hard",h:"Tough but doable",why:`Your training level is the limiting factor, not the trail. Eight focused weeks can close it — mind ${risk}.`,
+    plan:["Weeks 1-3: build a base, 3-4 walks a week, up to 10 km.","Weeks 4-6: pack 6-8 kg, one long hike every week.","Weeks 7-8: two loaded hikes back to back to simulate the hardest day."]};
+  return {s:"toosoon",h:"Too soon this time",why:"Not enough base or time for this trail yet. Give it a lower-difficulty season first.",
+    plan:["Pick a lower-difficulty trail this season (for example Preikestolen).","Start regular walks and return here when you have 8+ weeks."]};
+}
+function run(){
+  const t=TRAILS[trail.value], weeks=+document.getElementById('weeks').value;
+  const r=verdict(t.diff,fit,weeks,t.risk);
+  const acc=ACC[r.s]; const v=document.getElementById('verdict');
+  v.style.setProperty('--accent',acc);
+  document.getElementById('emblem').innerHTML=ICON[r.s];
+  document.getElementById('vtitle').textContent=r.h;
+  document.getElementById('why').textContent=r.why;
+  document.getElementById('vinputs').innerHTML=
+    `<span class="chip">${trail.value}</span><span class="chip">${FITWORD[fit]}</span><span class="chip">${weeks} week${weeks>1?'s':''}</span>`;
+  document.getElementById('plan').innerHTML=r.plan.map(p=>
+    `<li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg><span>${p}</span></li>`).join('');
+  v.classList.add('show');
+  v.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+const trail=document.getElementById('trail');
+const weeks=document.getElementById('weeks');
+function setPct(){weeks.style.setProperty('--pct',((weeks.value-1)/23*100)+'%');document.getElementById('wval').textContent=weeks.value+' week'+(weeks.value>1?'s':'');}
+trail.onchange=facts;
+weeks.oninput=setPct;
+document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#fit button').forEach(x=>x.classList.remove('on'));b.classList.add('on');fit=+b.dataset.v;});
+document.getElementById('go').onclick=run;
+facts();setPct();
+</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+
 # ---------- Header ----------
 _hero = _hero_b64()
-if _hero:
-    st.markdown(
-        '<div class="hero" style="background-image: '
-        'linear-gradient(180deg, rgba(30,44,32,0.10) 0%, rgba(30,44,32,0.80) 100%), '
-        f'url(\'data:image/jpeg;base64,{_hero}\');">'
-        '<div class="hero-loc">&#9678;&nbsp; Th&oacute;rsm&ouml;rk, Iceland</div>'
-        '<div class="hero-mark">BeReady</div>'
-        '<div class="hero-tag">Can you handle this trail?</div>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
-else:
-    st.markdown('<div class="brand-title">BeReady</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="brand-sub">An honest answer on whether you\'re ready for a trail, and what to do next.</div>',
-        unsafe_allow_html=True,
-    )
+components.html(HERO_TPL.replace("__HERO__", _hero), height=330)
 
 tab_form, tab_chat = st.tabs(["Quick check", "Ask BeReady"])
 
-# ---------- Tab 1: deterministic form ----------
+# ---------- Tab 1: Quick check (embedded HTML design, works client-side) ----------
 with tab_form:
-    trail_choice = st.selectbox(
-        "Trail",
-        options=[t["name"] for t in TRAILS.values()],
-    )
-    _sel = next(t for t in TRAILS.values() if t["name"] == trail_choice)
-    st.caption(
-        f"{_sel['km']} km  \u00b7  {_plural(_sel['days'], 'day')}  \u00b7  "
-        f"{DIFF_WORD[_sel['diff']]} difficulty  \u00b7  {_sel['risk']}"
-    )
-
-    with st.form("readiness"):
-        fitness = st.radio("Fitness level", options=list(FIT_MAP.keys()), horizontal=True)
-        weeks = st.slider("Weeks until the hike", min_value=1, max_value=24, value=8, format="%d weeks")
-        submitted = st.form_submit_button("Check my readiness")
-
-    if submitted:
-        with st.spinner("Assessing your readiness..."):
-            r = assess(trail_choice, fitness, weeks)
-        css = {"ready": "verdict-ready", "cond": "verdict-cond",
-               "hard": "verdict-hard", "toosoon": "verdict-toosoon"}[r["status"]]
-        plan_html = "".join(f"<li>{s}</li>" for s in r["plan"])
-        st.markdown(
-            f'<div class="card {css}">'
-            '<div class="verdict-kicker">Verdict</div>'
-            f'<div class="verdict-head">{r["head"]}</div>'
-            '<span class="badge">Carefully assessed, not a guess</span>'
-            f'<div class="note">{r["meta"]}</div>'
-            f'<div class="plan-title">Plan</div><ul class="plan-list">{plan_html}</ul></div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="card"><span class="note">'
-            "BeReady is not a doctor. This is an approximate assessment of physical readiness. "
-            "If you have injuries, pain, or chronic conditions, talk to a doctor before hiking."
-            "</span></div>",
-            unsafe_allow_html=True,
-            )
+    components.html(QC_HTML, height=640, scrolling=False)
 
 # ---------- Tab 2: chat ----------
 with tab_chat:
