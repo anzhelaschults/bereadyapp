@@ -187,7 +187,7 @@ def _verdict(rec, fit, weeks):
         ]
     if weeks < to:
         return "hard", "Tough but doable", _plan_for(weeks, multiday)
-    return "cond", "Start training", _plan_for(weeks, multiday)
+    return "cond", "Enough time to prepare", _plan_for(weeks, multiday)
 
 FIT_FRIENDLY = {1: "not training", 2: "sometimes active", 3: "training regularly"}
 
@@ -743,7 +743,7 @@ function verdict(rec,fit,weeks){
       why:`${midbody} ${wl} clears the ${tt}-week floor but sits under the ${to} weeks a comfortable build needs, so it is doable only if you train consistently and do not miss sessions.`,
       plan:planFor(weeks,multiday),note};
   }
-  return {s:"cond",h:"Start training",
+  return {s:"cond",h:"Enough time to prepare",
     why:`${midbody} ${wl} is enough runway to arrive genuinely prepared, so start now and train it.`,
     plan:planFor(weeks,multiday),note};
 }
