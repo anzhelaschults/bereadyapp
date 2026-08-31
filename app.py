@@ -115,13 +115,21 @@ st.markdown(
 )
 
 # ---------- Trail database (Norway and Iceland) ----------
+# grade = official technical grade (Norwegian national scale / park descriptions).
+# diff  = effective difficulty the verdict uses: grade plus a bump for multi-day
+#         treks, where days back to back are the real load, not the terrain.
 TRAILS = {
-    "laugavegur":     {"name": "Laugavegur (Iceland)",     "km": 55, "days": 4, "diff": 3, "risk": "long hiking days four days in a row"},
-    "fimmvorduhals":  {"name": "Fimmvorduhals (Iceland)",  "km": 25, "days": 1, "diff": 3, "risk": "a steep, long descent that stresses the knees"},
-    "trolltunga":     {"name": "Trolltunga (Norway)",      "km": 28, "days": 1, "diff": 3, "risk": "a long day with big elevation gain"},
-    "besseggen":      {"name": "Besseggen (Norway)",       "km": 14, "days": 1, "diff": 2, "risk": "a sharp, exposed ridge"},
-    "preikestolen":   {"name": "Preikestolen (Norway)",    "km": 8,  "days": 1, "diff": 1, "risk": "a moderate climb on a popular trail"},
+    "laugavegur":     {"name": "Laugavegur (Iceland)",     "km": 55, "days": 4, "grade": 2, "diff": 3, "risk": "long hiking days four days in a row"},
+    "fimmvorduhals":  {"name": "Fimmvorduhals (Iceland)",  "km": 25, "days": 1, "grade": 3, "diff": 3, "risk": "a steep, long descent that stresses the knees"},
+    "trolltunga":     {"name": "Trolltunga (Norway)",      "km": 28, "days": 1, "grade": 4, "diff": 4, "risk": "a long day with big elevation gain"},
+    "romsdalseggen":  {"name": "Romsdalseggen (Norway)",   "km": 11, "days": 1, "grade": 4, "diff": 4, "risk": "a narrow, exposed ridge with chain scrambles"},
+    "besseggen":      {"name": "Besseggen (Norway)",       "km": 14, "days": 1, "grade": 3, "diff": 3, "risk": "a sharp, exposed ridge"},
+    "kjeragbolten":   {"name": "Kjeragbolten (Norway)",    "km": 12, "days": 1, "grade": 3, "diff": 3, "risk": "chain-assisted scrambles and big drops"},
+    "preikestolen":   {"name": "Preikestolen (Norway)",    "km": 8,  "days": 1, "grade": 3, "diff": 3, "risk": "two steep sections and exposed drops near the top"},
+    "dalsnuten":      {"name": "Dalsnuten (Norway)",       "km": 3,  "days": 1, "grade": 1, "diff": 1, "risk": "a short steep push to the summit on an otherwise gentle trail"},
+    "gaustatoppen":   {"name": "Gaustatoppen (Norway)",    "km": 9,  "days": 1, "grade": 2, "diff": 2, "risk": "a rocky final stretch after a steady climb"},
 }
+GRADE_WORD = {1: "Easy", 2: "Moderate", 3: "Demanding", 4: "Very demanding"}
 DIFF_WORD = {1: "low", 2: "moderate", 3: "high"}
 FIT_MAP = {"I don't train": 1, "Sometimes active": 2, "I train regularly": 3}
 FIT_WORD = {1: "low", 2: "moderate", 3: "high"}
@@ -132,64 +140,71 @@ def _plural(n, word):
     return f"{n} {word}" + ("" if n == 1 else "s")
 
 
-def _verdict(diff, fit, weeks, risk):
-    gap = diff - fit
+def _verdict(rec, fit, weeks):
+    gap = rec["diff"] - fit
     if gap <= 0:
-        return "ready", "You're ready. Your fitness matches this trail.", [
+        return "ready", "You're ready", [
             "Keep your current activity level up until the start.",
             "Do one trial hike with a full pack to check your boots and gear.",
         ]
     if gap == 1:
         if weeks is not None and weeks < 6:
-            wk = f"{weeks} week" + ("s" if weeks != 1 else "")
-            return "cond", f"Almost ready, but {wk} is tight. This step up needs about 6 weeks of preparation.", [
+            return "cond", "Almost ready", [
                 "Start now: three to four walks a week, 5-8 km, with a light pack (4-6 kg).",
                 "Add one longer weekend hike each week, building toward a real day on the trail.",
                 "If you can't add time, pick an easier trail this season and come back to this one.",
             ]
-        return "cond", "Almost ready. You'll need about 6 weeks of preparation.", [
+        return "cond", "Almost ready", [
             "Weeks 1-2: three walks a week, 5-8 km at an easy pace.",
             "Weeks 3-4: add a light pack (4-6 kg) and one longer hike on the weekend.",
             "Weeks 5-6: a loaded hike close to a real day on the trail.",
         ]
-    if weeks and weeks >= 8:
-        return "hard", "Tough but doable with 8+ weeks of focused preparation.", [
+    if gap == 2 and weeks and weeks >= 8:
+        return "hard", "Tough but doable", [
             "Weeks 1-3: build a base, 3-4 walks a week, working up to 10 km.",
             "Weeks 4-6: pack 6-8 kg, one long hike every week.",
             "Weeks 7-8: two loaded hikes back to back to simulate the hardest day.",
-            f"Keep the trail's risk in mind: {risk}.",
         ]
-    return "toosoon", "Too soon this time. Consider an easier trail or more time.", [
+    return "toosoon", "Too soon this time", [
         "Pick a lower-difficulty trail this season (for example Preikestolen).",
-        "Start with regular walks and come back to this trail when you have 8+ weeks.",
+        "Start with regular walks and come back to this trail when you have more base and time.",
     ]
 
 
 FIT_FRIENDLY = {1: "not training", 2: "sometimes active", 3: "training regularly"}
 
 
-def _why(status, weeks, risk):
+def _why(rec, status, fit, weeks):
+    gw = GRADE_WORD[rec["grade"]].lower()
+    multiday = rec["diff"] > rec["grade"]
+    risk = rec["risk"]
     if status == "ready":
-        return "Your fitness matches this trail's demands. Keep it up and do one trial hike with a full pack."
+        return f"Your fitness matches this {gw} trail. Keep it up and do one trial hike with a full pack."
     if status == "cond":
         if weeks and weeks < 6:
-            return f"You are one step short, and {_plural(weeks, 'week')} is tight. This step up wants about six weeks."
-        return "You are one step short on fitness. About six weeks of focused prep closes the gap."
+            return f"You are one step short, and {_plural(weeks, 'week')} is tight. A {gw} trail wants about six weeks of prep."
+        return f"You are one step short for a {gw} trail. About six weeks of focused prep closes the gap."
     if status == "hard":
-        return f"Your training level is the limiting factor, not the trail. Eight focused weeks can close it, and mind {risk}."
+        if multiday:
+            return (f"Technically {rec['name']} is a {gw} trail, but {_plural(rec['days'], 'day')} back to back "
+                    "is the real load for your level. Eight focused weeks can close it.")
+        return f"{rec['name']} is a {gw} trail, {risk}. Your training level is the gap, and eight focused weeks can close it."
+    if (rec["diff"] - fit) >= 3:
+        return f"{rec['name']} is graded {gw}, {risk}. That is too large a jump from your current level, even in eight weeks."
     return "Not enough base or time for this trail yet. Give it a lower-difficulty season first."
 
 
 def assess(trail_name, fitness_label, weeks):
-    """Structured readiness for the form."""
+    """Structured readiness (kept for reference and tests)."""
     rec = next(t for t in TRAILS.values() if t["name"] == trail_name)
     fit = FIT_MAP[fitness_label]
-    status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
-    return {
-        "status": status, "head": head, "plan": plan, "risk": rec["risk"],
-        "meta": f"{rec['name']}: {rec['km']} km, {_plural(rec['days'], 'day')}, {DIFF_WORD[rec['diff']]} difficulty. "
-                f"Your level: {FIT_WORD[fit]}. Time to the hike: {_plural(weeks, 'week')}.",
-    }
+    status, head, plan = _verdict(rec, fit, weeks)
+    inputs = [rec["name"], f"{GRADE_WORD[rec['grade']]} grade"]
+    if rec["diff"] > rec["grade"]:
+        inputs.append(_plural(rec["days"], "day"))
+    inputs += [FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")]
+    return {"status": status, "head": head, "plan": plan,
+            "why": _why(rec, status, fit, weeks), "inputs": inputs}
 
 
 def _weeks_from_text(q: str):
@@ -244,21 +259,22 @@ def readiness_from_text(query: str) -> str:
         return ("Almost there, I just need your training level. Do you train regularly, "
                 "sometimes, or not at all? Then I can give you an honest verdict.")
     weeks = _weeks_from_text(q)
-    status, head, plan = _verdict(rec["diff"], fit, weeks, rec["risk"])
+    status, head, plan = _verdict(rec, fit, weeks)
     tail = f" You have {_plural(weeks, 'week')}." if weeks else ""
     plan_txt = "\n".join(f"- {s}" for s in plan)
-    # Stash the structured verdict so the chat can render the same card as the
-    # Quick check tab. Best effort: if session state is unreachable (e.g. the
-    # tool ran outside the script thread), the chat falls back to the text.
+    # Stash the structured verdict so the chat renders the same card as Quick check.
     try:
+        _inputs = [rec["name"], f"{GRADE_WORD[rec['grade']]} grade"]
+        if rec["diff"] > rec["grade"]:
+            _inputs.append(_plural(rec["days"], "day"))
+        _inputs += [FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")]
         st.session_state["_chat_verdict"] = {
             "status": status, "head": head, "plan": plan,
-            "why": _why(status, weeks, rec["risk"]),
-            "inputs": [rec["name"], FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")],
+            "why": _why(rec, status, fit, weeks), "inputs": _inputs,
         }
     except Exception:
         pass
-    return (f"{rec['name']}, difficulty {DIFF_WORD[rec['diff']]}, your level {FIT_WORD[fit]}.{tail}\n\n"
+    return (f"{rec['name']}, {GRADE_WORD[rec['grade']]} grade, your level {FIT_WORD[fit]}.{tail}\n\n"
             f"**{head}**\n\nPlan:\n{plan_txt}\n\n"
             f"*This is an approximate fitness assessment, not a medical opinion.*")
 
@@ -492,7 +508,7 @@ HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="view
   .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
     font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
   .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
-  .inputs .chip{background:#fff; border-color:var(--line)}
+  .inputs .chip{background:#fff; border-color:var(--line)} .inputs .chip.grade{color:var(--moss); background:#eef2e8; border-color:#dbe6d0}
   .plan{list-style:none; padding:0; margin:16px 0 0}
   .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
   .plan svg{flex:none; margin-top:2px; color:var(--accent)}
@@ -611,7 +627,7 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
     font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
   .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
-  .inputs .chip{background:#fff; border-color:var(--line)}
+  .inputs .chip{background:#fff; border-color:var(--line)} .inputs .chip.grade{color:var(--moss); background:#eef2e8; border-color:#dbe6d0}
   .plan{list-style:none; padding:0; margin:16px 0 0}
   .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
   .plan svg{flex:none; margin-top:2px; color:var(--accent)}
@@ -684,13 +700,17 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
     </div>
   </div><p class="note">Five trails in Iceland and Norway for now, more coming.</p></div><script>
 const TRAILS={
- "Laugavegur (Iceland)":{km:55,days:4,diff:3,risk:"long hiking days four days in a row"},
- "Fimmvorduhals (Iceland)":{km:25,days:1,diff:3,risk:"a steep, long descent that stresses the knees"},
- "Trolltunga (Norway)":{km:28,days:1,diff:3,risk:"a long day with big elevation gain"},
- "Besseggen (Norway)":{km:14,days:1,diff:2,risk:"a sharp, exposed ridge"},
- "Preikestolen (Norway)":{km:8,days:1,diff:1,risk:"a moderate climb on a popular trail"},
+ "Laugavegur (Iceland)":{km:55,days:4,grade:2,diff:3,risk:"long hiking days four days in a row"},
+ "Fimmvorduhals (Iceland)":{km:25,days:1,grade:3,diff:3,risk:"a steep, long descent that stresses the knees"},
+ "Trolltunga (Norway)":{km:28,days:1,grade:4,diff:4,risk:"a long day with big elevation gain"},
+ "Romsdalseggen (Norway)":{km:11,days:1,grade:4,diff:4,risk:"a narrow, exposed ridge with chain scrambles"},
+ "Besseggen (Norway)":{km:14,days:1,grade:3,diff:3,risk:"a sharp, exposed ridge"},
+ "Kjeragbolten (Norway)":{km:12,days:1,grade:3,diff:3,risk:"chain-assisted scrambles and big drops"},
+ "Preikestolen (Norway)":{km:8,days:1,grade:3,diff:3,risk:"two steep sections and exposed drops near the top"},
+ "Dalsnuten (Norway)":{km:3,days:1,grade:1,diff:1,risk:"a short steep push to the summit on an otherwise gentle trail"},
+ "Gaustatoppen (Norway)":{km:9,days:1,grade:2,diff:2,risk:"a rocky final stretch after a steady climb"},
 };
-const DIFF={1:"Low",2:"Moderate",3:"High"};
+const GRADE={1:"Easy",2:"Moderate",3:"Demanding",4:"Very demanding"};
 const FITWORD={1:"not training",2:"sometimes active",3:"training regularly"};
 let fit=1;
 
@@ -706,34 +726,42 @@ function facts(){
   const t=TRAILS[trail.value];
   document.getElementById('facts').innerHTML=
     `<span class="chip">${t.km} km</span><span class="chip">${t.days} day${t.days>1?'s':''}</span>`+
-    `<span class="chip">${DIFF[t.diff]} difficulty</span>`+
+    `<span class="chip">${GRADE[t.grade]}</span>`+
     `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;
 }
-function verdict(diff,fit,weeks,risk){
-  const gap=diff-fit;
-  if(gap<=0) return {s:"ready",h:"You're ready",why:"Your fitness matches this trail's demands. Keep it up and do one trial hike with a full pack.",
+function verdict(rec,fit,weeks){
+  const gap=rec.diff-fit;
+  const gw=GRADE[rec.grade].toLowerCase();
+  const multiday=rec.diff>rec.grade;
+  if(gap<=0) return {s:"ready",h:"You're ready",why:`Your fitness matches this ${gw} trail. Keep it up and do one trial hike with a full pack.`,
     plan:["Hold your current activity level until the start.","One trial hike with a loaded pack to check boots and gear."]};
   if(gap===1){
-    if(weeks<6) return {s:"cond",h:"Almost ready",why:`You are one step short, and ${weeks} week${weeks>1?'s':''} is tight. This step up wants about six weeks.`,
+    if(weeks<6) return {s:"cond",h:"Almost ready",why:`You are one step short, and ${weeks} week${weeks>1?'s':''} is tight. A ${gw} trail wants about six weeks of prep.`,
       plan:["Start now: three to four walks a week with a light pack (4-6 kg).","One longer weekend hike each week toward a real day on the trail.","If you can't add time, pick an easier trail this season."]};
-    return {s:"cond",h:"Almost ready",why:"You are one step short on fitness. About six weeks of focused prep closes the gap.",
+    return {s:"cond",h:"Almost ready",why:`You are one step short for a ${gw} trail. About six weeks of focused prep closes the gap.`,
       plan:["Weeks 1-2: three walks a week, 5-8 km easy.","Weeks 3-4: add a light pack (4-6 kg) and one longer weekend hike.","Weeks 5-6: a loaded hike close to a real day on the trail."]};
   }
-  if(weeks>=8) return {s:"hard",h:"Tough but doable",why:`Your training level is the limiting factor, not the trail. Eight focused weeks can close it, and mind ${risk}.`,
-    plan:["Weeks 1-3: build a base, 3-4 walks a week, up to 10 km.","Weeks 4-6: pack 6-8 kg, one long hike every week.","Weeks 7-8: two loaded hikes back to back to simulate the hardest day."]};
-  return {s:"toosoon",h:"Too soon this time",why:"Not enough base or time for this trail yet. Give it a lower-difficulty season first.",
-    plan:["Pick a lower-difficulty trail this season (for example Preikestolen).","Start regular walks and return here when you have 8+ weeks."]};
+  if(gap===2&&weeks>=8){
+    const why=multiday?`Technically ${rec.name} is a ${gw} trail, but ${rec.days} days back to back is the real load for your level. Eight focused weeks can close it.`
+      :`${rec.name} is a ${gw} trail, ${rec.risk}. Your training level is the gap, and eight focused weeks can close it.`;
+    return {s:"hard",h:"Tough but doable",why:why,
+      plan:["Weeks 1-3: build a base, 3-4 walks a week, up to 10 km.","Weeks 4-6: pack 6-8 kg, one long hike every week.","Weeks 7-8: two loaded hikes back to back to simulate the hardest day."]};
+  }
+  const why=(gap>=3)?`${rec.name} is graded ${gw}, ${rec.risk}. That is too large a jump from your current level, even in eight weeks.`
+    :"Not enough base or time for this trail yet. Give it a lower-difficulty season first.";
+  return {s:"toosoon",h:"Too soon this time",why:why,
+    plan:["Pick a lower-difficulty trail this season (for example Preikestolen).","Start regular walks and return here when you have more base and time."]};
 }
 function run(){
-  const t=TRAILS[trail.value], weeks=+document.getElementById('weeks').value;
-  const r=verdict(t.diff,fit,weeks,t.risk);
+  const t={...TRAILS[trail.value],name:trail.value}, weeks=+document.getElementById('weeks').value;
+  const r=verdict(t,fit,weeks);
   const acc=ACC[r.s]; const v=document.getElementById('verdict');
   v.style.setProperty('--accent',acc);
   document.getElementById('emblem').innerHTML=ICON[r.s];
   document.getElementById('vtitle').textContent=r.h;
   document.getElementById('why').textContent=r.why;
   document.getElementById('vinputs').innerHTML=
-    `<span class="chip">${trail.value}</span><span class="chip">${FITWORD[fit]}</span><span class="chip">${weeks} week${weeks>1?'s':''}</span>`;
+    `<span class="chip">${trail.value}</span><span class="chip grade">${GRADE[t.grade]} grade</span>${(t.diff>t.grade)?`<span class="chip">${t.days} days</span>`:""}<span class="chip">${FITWORD[fit]}</span><span class="chip">${weeks} week${weeks>1?'s':''}</span>`;
   document.getElementById('plan').innerHTML=r.plan.map(p=>
     `<li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg><span>${p}</span></li>`).join('');
   v.classList.add('show');
@@ -843,7 +871,7 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
   .computed{margin:16px 0 4px; padding-top:15px; border-top:1px solid var(--line); font-size:12px;
     font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
   .inputs{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px}
-  .inputs .chip{background:#fff; border-color:var(--line)}
+  .inputs .chip{background:#fff; border-color:var(--line)} .inputs .chip.grade{color:var(--moss); background:#eef2e8; border-color:#dbe6d0}
   .plan{list-style:none; padding:0; margin:16px 0 0}
   .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
   .plan svg{flex:none; margin-top:2px; color:var(--accent)}
@@ -941,7 +969,7 @@ with tab_chat:
             v = m.get("verdict")
             if v:
                 acc = {"ready": "#42583f", "cond": "#b07d1f", "hard": "#a1502f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
-                inputs_html = "".join(f'<span class="chip">{x}</span>' for x in v.get("inputs", []))
+                inputs_html = "".join(f'<span class="chip{" grade" if str(x).endswith("grade") else ""}">{x}</span>' for x in v.get("inputs", []))
                 plan_html = "".join(f'<li>{_CHK}<span>{s}</span></li>' for s in v["plan"])
                 card = (VERDICT_CARD
                         .replace("__ACCENT__", acc).replace("__ICON__", _VICON.get(v["status"], ""))
