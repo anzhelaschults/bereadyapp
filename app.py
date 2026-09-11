@@ -556,7 +556,7 @@ HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="view
       <h1 class="brand">BeReady</h1>
       <p class="tag">Can you handle this trail?</p>
     </div>
-  </div><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+  </div><script>(function(){function rz(){var el=document.querySelector(".wrap");var h=Math.ceil(el?el.getBoundingClientRect().bottom:document.documentElement.scrollHeight)+12;window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
 QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}
   :root{
@@ -766,7 +766,7 @@ trail.onchange=()=>{facts();render(true);};
 weeks.oninput=()=>{setPct();render(true);};
 document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#fit button').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-checked','false');});b.classList.add('on');b.setAttribute('aria-checked','true');fit=+b.dataset.v;render(true);});
 facts();setPct();render(false);
-</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener("load",rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+</script><script>(function(){function rz(){var el=document.querySelector(".wrap");var h=Math.ceil(el?el.getBoundingClientRect().bottom:document.documentElement.scrollHeight)+12;window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener("load",rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
 VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}.verdict{margin-top:0 !important}
   :root{
@@ -907,7 +907,7 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
       <p class="disc">Approximate fitness assessment, not a medical opinion.</p>
     </div>
   </div>
-</div></div><script>(function(){var S="__STATUS__",W=__WK__,FL=__FL__,CO=__CO__;var rw=document.getElementById('rw');if(!rw)return;if(S==="ready"||!CO){rw.style.display="none";return;}var end=Math.max(CO+6,W);function pct(x){return Math.max(0,Math.min(100,((x-1)/(end-1))*100));}document.getElementById('z1').style.width=pct(FL)+"%";document.getElementById('z2').style.width=(pct(CO)-pct(FL))+"%";document.getElementById('z3').style.width=(100-pct(CO))+"%";document.getElementById('you').style.left=pct(W)+"%";document.getElementById('scale').innerHTML='<span class="mk" style="left:'+pct(FL)+'%">'+FL+' wk</span><span class="mk" style="left:'+pct(CO)+'%">'+CO+' wk, comfortable</span>';var n=document.getElementById('rnote');n.innerHTML=W>=CO?'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. You are set.</span>':(W<FL?'You have '+W+' weeks. <span>This trip needs about '+CO+' weeks. Give it more time.</span>':'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. Add weeks if you can.</span>');})();</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+</div></div><script>(function(){var S="__STATUS__",W=__WK__,FL=__FL__,CO=__CO__;var rw=document.getElementById('rw');if(!rw)return;if(S==="ready"||!CO){rw.style.display="none";return;}var end=Math.max(CO+6,W);function pct(x){return Math.max(0,Math.min(100,((x-1)/(end-1))*100));}document.getElementById('z1').style.width=pct(FL)+"%";document.getElementById('z2').style.width=(pct(CO)-pct(FL))+"%";document.getElementById('z3').style.width=(100-pct(CO))+"%";document.getElementById('you').style.left=pct(W)+"%";document.getElementById('scale').innerHTML='<span class="mk" style="left:'+pct(FL)+'%">'+FL+' wk</span><span class="mk" style="left:'+pct(CO)+'%">'+CO+' wk, comfortable</span>';var n=document.getElementById('rnote');n.innerHTML=W>=CO?'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. You are set.</span>':(W<FL?'You have '+W+' weeks. <span>This trip needs about '+CO+' weeks. Give it more time.</span>':'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. Add weeks if you can.</span>');})();</script><script>(function(){function rz(){var el=document.querySelector(".wrap");var h=Math.ceil(el?el.getBoundingClientRect().bottom:document.documentElement.scrollHeight)+12;window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
 _VICON = {
  "ready": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
@@ -925,7 +925,7 @@ tab_form, tab_chat = st.tabs(["Quick check", "Ask BeReady"])
 
 # ---------- Tab 1: Quick check (embedded HTML design, works client-side) ----------
 with tab_form:
-    components.html(QC_HTML, height=820, scrolling=False)
+    components.html(QC_HTML, height=920, scrolling=False)
 
 # ---------- Tab 2: chat ----------
 with tab_chat:
@@ -982,7 +982,7 @@ with tab_chat:
                         .replace("__STATUS__", v["status"]).replace("__WK__", str(v.get("weeks", 0)))
                         .replace("__FL__", str(v.get("floor", 0))).replace("__CO__", str(v.get("comfort", 0))))
                 with box:
-                    components.html(card, height=470, scrolling=False)
+                    components.html(card, height=540, scrolling=False)
                 if m.get("show_text"):
                     box.markdown(m["content"])
             else:
