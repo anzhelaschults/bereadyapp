@@ -580,9 +580,17 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   .chip{font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--bone-2);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
   .facts .risk{width:100%;margin-top:4px;font-size:13px;color:var(--muted)}
   .facts .risk b{color:var(--ink-soft);font-weight:600}
+  #facts{display:block;margin-top:10px}
+  #facts .meta{font-size:13.5px;color:var(--ink-soft);font-weight:600}
+  #facts .risk{margin-top:3px;font-size:13px;color:var(--muted)}
+  .fithint{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
   .toggle{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .toggle button{font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink-soft);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:12px 6px;cursor:pointer;transition:.15s}
+  .toggle button{display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink-soft);background:#fff;border:1px solid #cdd5c4;border-radius:12px;padding:13px 6px;cursor:pointer;transition:.15s}
+  .toggle button .dot{width:15px;height:15px;border-radius:50%;border:2px solid #b9c3af;flex:none}
+  .toggle button:hover{border-color:var(--moss);box-shadow:0 2px 8px rgba(43,63,43,.08)}
+  .toggle button:hover .dot{border-color:var(--moss)}
   .toggle button.on{background:var(--moss);color:#fff;border-color:var(--moss)}
+  .toggle button.on .dot{border-color:#fff;background:#fff;box-shadow:inset 0 0 0 3px var(--moss)}
   .toggle button:focus-visible,select:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--moss-bright);outline-offset:2px}
   .slider-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
   .slider-row .val{font-size:16px;font-weight:700;color:var(--ink)}
@@ -638,10 +646,11 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
     </div>
     <div class="field">
       <p class="lbl" id="lbl-fit">Fitness level</p>
+      <p class="fithint">Choose one to see your verdict</p>
       <div class="toggle" id="fit" role="radiogroup" aria-labelledby="lbl-fit">
-        <button role="radio" aria-checked="false" data-v="1">I don't train</button>
-        <button role="radio" aria-checked="false" data-v="2">Sometimes active</button>
-        <button role="radio" aria-checked="false" data-v="3">I train regularly</button>
+        <button role="radio" aria-checked="false" data-v="1"><span class="dot"></span>I don't train</button>
+        <button role="radio" aria-checked="false" data-v="2"><span class="dot"></span>Sometimes active</button>
+        <button role="radio" aria-checked="false" data-v="3"><span class="dot"></span>I train regularly</button>
       </div>
     </div>
     <div class="field">
@@ -716,7 +725,7 @@ function verdict(t,fit,w){
 }
 function facts(){const t=TRAILS[trail.value];
   document.getElementById('facts').innerHTML=
-    `<span class="chip">${t.km} km</span><span class="chip">${t.days} day${t.days>1?'s':''}</span><span class="chip">${GRADE[t.grade]}</span>`+
+    `<div class="meta">${t.km} km &middot; ${t.days} day${t.days>1?'s':''} &middot; ${GRADE[t.grade]}</div>`+
     `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;}
 let lastKey="";
 function render(animate){
