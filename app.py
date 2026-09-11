@@ -65,7 +65,7 @@ st.markdown(
             box-shadow: 0 8px 26px rgba(43,65,46,0.08); }
     .verdict-ready    { border-left: 6px solid #425844; }
     .verdict-cond     { border-left: 6px solid #b98a2e; }
-    .verdict-hard     { border-left: 6px solid #a1502f; }
+    .verdict-hard     { border-left: 6px solid #b07d1f; }
     .verdict-toosoon  { border-left: 6px solid #50808e; }
     .verdict-unknown  { border-left: 6px solid #6b7280; }
     .verdict-kicker { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em;
@@ -145,20 +145,20 @@ def _plan_for(weeks, multiday):
     if w < 8:
         p = ["Start now. Three to four sessions a week: easy aerobic walks plus one strength day (step-ups, lunges, core).",
              "A loaded long hike every weekend, adding about 10 percent time and vertical each week.",
-             "Train the downhill early so descents don't wreck your legs, then taper the last five days."]
+             "Train the downhill early so descents don't wreck your legs, then ease off your training for the last five days."]
         if multiday:
             p.insert(2, "Add one back-to-back weekend to rehearse consecutive days.")
         return p
     if w < 20:
         p = ["Weeks 1 to 4: build an aerobic base, easy volume, strength twice a week.",
              "Middle weeks: progressive loaded long hikes, more vertical, hill repeats.",
-             "Final weeks: rehearse the real terrain and pack weight, then taper the last week."]
+             "Final weeks: rehearse the real terrain and pack weight, then ease off your training the last week."]
         if multiday:
             p.insert(2, "Add back-to-back weekends to prepare for consecutive days.")
         return p
     p = ["Months 1 to 3: build the aerobic engine and general strength, steady and consistent, conditioning tendons for the load.",
          "Middle months: heavier leg strength and rising weekly vertical on loaded hikes.",
-         "Final 12 to 16 weeks: the trail-specific block, long days and terrain practice, then taper. Deload every third or fourth week."]
+         "Final 12 to 16 weeks: the trail-specific block, long days and terrain practice, then ease off to rest. Take an easier week every third or fourth week."]
     if multiday:
         p.insert(2, "Rehearse back-to-back days in the final block.")
     return p
@@ -175,7 +175,7 @@ def _verdict(rec, fit, weeks):
     multiday = rec["diff"] > rec["grade"]
     if gap <= 0:
         p = ["Hold your current activity level until the start.",
-             "One trial hike with a loaded pack to check boots and gear."]
+             "One trial hike with a loaded pack to test your gear and footwear."]
         if multiday:
             p.append("Rehearse a back-to-back weekend so consecutive days are not a surprise.")
         return "ready", "You're ready", p
@@ -289,9 +289,12 @@ def readiness_from_text(query: str) -> str:
         if rec["diff"] > rec["grade"]:
             _inputs.append(_plural(rec["days"], "day"))
         _inputs += [FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")]
+        _gap = rec["diff"] - fit
+        _fl, _co = THRESH.get(_gap, (0, 0))
         st.session_state["_chat_verdict"] = {
             "status": status, "head": head, "plan": plan,
             "why": _why(rec, status, fit, weeks), "inputs": _inputs,
+            "weeks": weeks or 0, "floor": _fl, "comfort": _co,
         }
     except Exception:
         pass
@@ -441,7 +444,7 @@ HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="view
     --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#4a5a44;
     --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#5f7d3f;
     --line:#e4e1d3; --white:#ffffff; --muted:#8a917f;
-    --ready:#42583f; --cond:#5f7d3f; --hard:#a1502f; --toosoon:#3f7286;
+    --ready:#42583f; --cond:#5f7d3f; --hard:#b07d1f; --toosoon:#3f7286;
     --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
   }
   *{box-sizing:border-box}
@@ -555,43 +558,36 @@ HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="view
     </div>
   </div><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
-QC_HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
+QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}
   :root{
     --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#455540;
     --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#4f6a34;
     --line:#e4e1d3; --white:#fff; --muted:#6b7360;
-    --ready:#42583f; --cond:#5f7d3f; --hard:#a1502f; --toosoon:#356274;
+    --ready:#42583f; --cond:#5f7d3f; --hard:#b07d1f; --toosoon:#356274;
+    --zoneSoon:#e7d3c9; --zoneTight:#efe2c4; --zoneOk:#dce7d0;
     --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
   }
-  *{box-sizing:border-box} html,body{margin:0}
-  body{font-family:'Inter',system-ui,sans-serif; background:transparent; color:var(--ink);
-    -webkit-font-smoothing:antialiased; line-height:1.5}
-  .wrap{max-width:600px; margin:0 auto; padding:0}
-  .card{background:var(--white); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:22px}
+  *{box-sizing:border-box}
+  body{font-family:'Inter',system-ui,sans-serif;background:transparent;color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+  .wrap{max-width:600px;margin:0 auto;padding:0}
+  .card{background:var(--white);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px}
   .field{margin-bottom:18px} .field:last-child{margin-bottom:0}
   .lbl{font-size:11.5px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:var(--moss-bright);margin:0 0 8px}
   .select{position:relative}
-  select{width:100%; appearance:none; font-family:inherit; font-size:16px; font-weight:600; color:var(--ink);
-    background:var(--bone); border:1px solid var(--line); border-radius:12px; padding:13px 42px 13px 14px; cursor:pointer}
-  .select .chev{position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--ink-soft)}
+  select{width:100%;appearance:none;font-family:inherit;font-size:16px;font-weight:600;color:var(--ink);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:13px 42px 13px 14px;cursor:pointer}
+  .select .chev{position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-soft)}
   .facts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
   .chip{font-size:12.5px;font-weight:600;color:var(--ink-soft);background:var(--bone-2);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
   .facts .risk{width:100%;margin-top:4px;font-size:13px;color:var(--muted)}
   .facts .risk b{color:var(--ink-soft);font-weight:600}
   .toggle{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .toggle button{font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink-soft);background:var(--bone);
-    border:1px solid var(--line);border-radius:12px;padding:12px 6px;cursor:pointer;transition:.15s}
+  .toggle button{font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink-soft);background:var(--bone);border:1px solid var(--line);border-radius:12px;padding:12px 6px;cursor:pointer;transition:.15s}
   .toggle button.on{background:var(--moss);color:#fff;border-color:var(--moss)}
   .toggle button:focus-visible,select:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--moss-bright);outline-offset:2px}
   .slider-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
   .slider-row .val{font-size:16px;font-weight:700;color:var(--ink)}
-  input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:999px;outline:none;
-    background:linear-gradient(90deg,var(--moss) 0%,var(--moss) var(--pct,30%),var(--line) var(--pct,30%),var(--line) 100%)}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;
-    background:var(--moss);border:3px solid #fff;box-shadow:0 2px 6px rgba(43,63,43,.35);cursor:pointer}
+  input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:999px;outline:none;background:linear-gradient(90deg,var(--moss) 0%,var(--moss) var(--pct,30%),var(--line) var(--pct,30%),var(--line) 100%)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--moss);border:3px solid #fff;box-shadow:0 2px 6px rgba(43,63,43,.35);cursor:pointer}
   input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--moss);border:3px solid #fff;cursor:pointer}
   .track{position:relative}
   .ticks{position:relative;height:24px;margin-top:5px}
@@ -601,38 +597,43 @@ QC_HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
   .ticks .t i{width:1px;height:6px;background:var(--line);margin-bottom:3px}
   .ticks .t.brk{color:var(--moss-bright);font-weight:600}
   .ticks .t.brk i{height:11px;width:2px;background:var(--moss-bright)}
-  /* verdict */
+  /* verdict, simplified */
   .verdict{margin-top:16px;background:var(--white);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
   .verdict .bar{height:5px;background:var(--accent)}
-  .verdict .body{padding:22px}
+  .vb{padding:22px}
   .vhead{display:flex;align-items:center;gap:12px}
-  .emblem{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
-    background:color-mix(in srgb,var(--accent) 14%,#fff);color:var(--accent);transition:background .3s}
+  .emblem{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accent) 14%,#fff);color:var(--accent)}
   .kick{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin:0}
   .vtitle{font-size:24px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin:2px 0 0}
-  .why{margin:12px 0 0;font-size:15px;color:var(--ink-soft)}
-  .computed{margin:16px 0 4px;padding-top:15px;border-top:1px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .inputs{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
-  .inputs .chip{background:#fff;border-color:var(--line)}
-  .inputs .chip.grade{color:var(--moss);background:#eef2e8;border-color:#dbe6d0}
-  .plan{list-style:none;padding:0;margin:16px 0 0}
-  .plan li{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:14.5px;color:var(--ink)}
+  .why{margin:13px 0 0;font-size:15px;color:var(--ink-soft)}
+  .runway{margin:18px 0 0}
+  .runway .rtrack{position:relative;height:14px;border-radius:999px;overflow:hidden;display:flex}
+  .runway .zone{height:100%}
+  .runway .z1{background:var(--zoneSoon)} .runway .z2{background:var(--zoneTight)} .runway .z3{background:var(--zoneOk)}
+  .runway .you{position:absolute;top:-5px;width:4px;height:24px;border-radius:2px;background:var(--ink);transform:translateX(-50%);box-shadow:0 0 0 3px #fff}
+  .runway .scale{position:relative;height:16px;margin-top:7px}
+  .runway .mk{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+  .runway .note{margin:12px 0 0;font-size:13.5px;color:var(--ink);font-weight:600}
+  .runway .note span{color:var(--muted);font-weight:500}
+  details.more{margin:16px 0 0;border-top:1px solid var(--line);padding-top:12px}
+  details.more summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--moss-bright);list-style:none}
+  details.more summary::-webkit-details-marker{display:none}
+  details.more summary::after{content:" +";color:var(--muted)}
+  details.more[open] summary::after{content:" -"}
+  .plan{list-style:none;padding:0;margin:12px 0 0}
+  .plan li{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:14px;color:var(--ink)}
   .plan svg{flex:none;margin-top:2px;color:var(--accent)}
-  .trainnote{margin:12px 0 0;font-size:12.5px;color:var(--muted);font-style:italic}
-  .foot{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:15px;border-top:1px solid var(--line);flex-wrap:wrap}
-  .badge{font-size:12px;font-weight:600;color:var(--moss);background:#eef2e8;border:1px solid #dfe6d6;border-radius:999px;padding:5px 11px;display:inline-flex;align-items:center;gap:6px}
-  .disc{font-size:12.5px;color:var(--muted);margin:0}
-  @keyframes flash{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
-  .verdict.flash{animation:flash .5s ease-out}
-  @media (prefers-reduced-motion: reduce){.verdict.flash{animation:none}}
+  .computed{margin:18px 0 4px;padding-top:15px;border-top:1px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .inputs{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+  .inputs .chip{background:#fff;border-color:var(--line)} .inputs .chip.grade{color:var(--moss);background:#eef2e8;border-color:#dbe6d0}
+  .disc{font-size:12px;color:var(--muted);margin:12px 0 0}
+  .foot{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;font-weight:600;color:var(--moss)}
 </style></head><body><div class="wrap">
   <div class="card">
     <div class="field">
       <p class="lbl" id="lbl-trail">Trail</p>
-      <div class="select">
-        <select id="trail" aria-labelledby="lbl-trail"></select>
-        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
-      </div>
+      <div class="select"><select id="trail" aria-labelledby="lbl-trail"></select>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></div>
       <div class="facts" id="facts"></div>
     </div>
     <div class="field">
@@ -654,18 +655,20 @@ QC_HTML = r'''<!doctype html><html lang="en"><head><meta charset="utf-8">
 
   <div class="verdict" id="verdict" aria-live="polite">
     <div class="bar"></div>
-    <div class="body">
+    <div class="vb">
       <div class="vhead"><div class="emblem" id="emblem"></div>
         <div><p class="kick">Verdict</p><h2 class="vtitle" id="vtitle"></h2></div></div>
       <p class="why" id="why"></p>
-      <p class="computed">Computed from</p>
-      <div class="inputs" id="vinputs"></div>
-      <ul class="plan" id="plan"></ul>
-      <p class="trainnote" id="trainnote"></p>
-      <div class="foot">
-        <span class="badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</span>
-        <p class="disc">Fitness readiness only, not a medical opinion.</p>
+      <div class="runway" id="runway">
+        <div class="rtrack"><div class="zone z1" id="z1"></div><div class="zone z2" id="z2"></div><div class="zone z3" id="z3"></div><div class="you" id="you"></div></div>
+        <div class="scale" id="scale"></div>
+        <p class="note" id="rnote"></p>
       </div>
+      <p class="computed">Computed from</p>
+      <div class="inputs" id="inputs"></div>
+      <ul class="plan" id="plan"></ul>
+      <p class="disc">Fitness readiness only, not a medical or mountain-safety clearance.</p>
+      <div class="foot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</div>
     </div>
   </div>
 </div>
@@ -683,119 +686,83 @@ const TRAILS={
 };
 const GRADE={1:"Easy",2:"Moderate",3:"Demanding",4:"Very demanding"};
 const FITWORD={1:"not training",2:"sometimes active",3:"training regularly"};
-const THRESH={1:[3,6],2:[6,12],3:[12,20]};   // [too-soon floor, on-track] weeks, per gap
-const GAPWORD={1:"one step short",2:"two steps short",3:"a big jump up"};
-// One-week steps where the verdict can change (1-24), then coarse 4-week steps to a year.
+const THRESH={1:[3,6],2:[6,12],3:[12,20]};
 const WEEKS=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,28,32,36,40,44,48,52];
-const curWeeks=()=>WEEKS[+weeks.value];
-let fit=1;
-const ICON={
- ready:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
- cond:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
- hard:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 20h18L12 4z"/></svg>',
- toosoon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
-};
+const ICON={ready:'<path d="M20 6L9 17l-5-5"/>',cond:'<path d="M12 19V5M5 12l7-7 7 7"/>',hard:'<path d="M3 20h18L12 4z"/>',toosoon:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/>'};
 const ACC={ready:"var(--ready)",cond:"var(--cond)",hard:"var(--hard)",toosoon:"var(--toosoon)"};
+let fit=1;
 const trail=document.getElementById('trail'), weeks=document.getElementById('weeks');
 Object.keys(TRAILS).forEach(n=>{const o=document.createElement('option');o.textContent=n;trail.appendChild(o);});
-
-// friendly durations: small numbers in weeks, larger in months
-function dur(w){ return w<=8 ? (w+' week'+(w>1?'s':'')) : ('about '+Math.round(w/4.345)+' months'); }
+const curWeeks=()=>WEEKS[+weeks.value];
 function fmtVal(w){ return w===1 ? '1 week' : (w+' weeks'); }
-
-function planTight(multiday){ const p=[
-  "Start now. Three to four sessions a week: easy aerobic walks plus one strength day (step-ups, lunges, core).",
-  "A loaded long hike every weekend, adding about 10 percent time and vertical each week.",
-  "Train the downhill early so descents don't wreck your legs, then taper the last five days."];
-  if(multiday) p.splice(2,0,"Add one back-to-back weekend to rehearse consecutive days."); return p; }
-function planMedium(multiday){ const p=[
-  "Weeks 1 to 4: build an aerobic base, easy volume, strength twice a week.",
-  "Middle weeks: progressive loaded long hikes, more vertical, hill repeats.",
-  "Final weeks: rehearse the real terrain and pack weight, then taper the last week."];
-  if(multiday) p.splice(2,0,"Add back-to-back weekends to prepare for consecutive days."); return p; }
-function planLong(multiday){ const p=[
-  "Months 1 to 3: build the aerobic engine and general strength, steady and consistent, conditioning tendons for the load.",
-  "Middle months: heavier leg strength and rising weekly vertical on loaded hikes.",
-  "Final 12 to 16 weeks: the trail-specific block, long days and terrain practice, then taper. Deload every third or fourth week."];
-  if(multiday) p.splice(2,0,"Rehearse back-to-back days in the final block."); return p; }
-function planFor(w,multiday){ return w<8?planTight(multiday):(w<20?planMedium(multiday):planLong(multiday)); }
-
-function verdict(rec,fit,weeks){
-  const gap=rec.diff-fit, gw=GRADE[rec.grade].toLowerCase(), multiday=rec.diff>rec.grade;
-  const wl=fmtVal(weeks);
-  if(gap<=0){
-    const p=["Hold your current activity level until the start.","One trial hike with a loaded pack to check boots and gear."];
-    if(multiday) p.push("Rehearse a back-to-back weekend so consecutive days are not a surprise.");
-    return {s:"ready",h:"You're ready",why:`Your fitness matches this ${gw} trail. Keep it up and do one trial hike with a full pack.`,plan:p,note:""};
-  }
-  const [tt,to]=THRESH[gap];
-  const midbody = multiday
-    ? `Technically ${rec.name} is a ${gw} trail, but ${rec.days} days back to back are the real load for your level.`
-    : `You are ${GAPWORD[gap]} for a ${gw} trail (${rec.risk}).`;
-  const note = "These weeks only count if you actually train them.";
-  if(weeks<tt){
-    return {s:"toosoon",h:"Too soon this time",
-      why:`${midbody} From your level that takes around ${to} weeks of training, well past the ${wl} you have. Pick an easier trail this season, or give it more runway.`,
-      plan:["Choose a lower-difficulty trail this season (for example Gaustatoppen or Preikestolen).","Start regular walks and strength now, and come back when you have more time."],note:""};
-  }
-  if(weeks<to){
-    return {s:"hard",h:"Tough but doable",
-      why:`${midbody} ${wl} clears the ${tt}-week floor but sits under the ${to} weeks a comfortable build needs, so it is doable only if you train consistently and do not miss sessions.`,
-      plan:planFor(weeks,multiday),note};
-  }
-  return {s:"cond",h:"Enough time to prepare",
-    why:`${midbody} ${wl} is enough runway to arrive genuinely prepared, so start now and train it.`,
-    plan:planFor(weeks,multiday),note};
+function planFor(w,md){let p;
+  if(w<8)p=["Start now: easy aerobic walks plus one strength day each week.","Add a loaded long hike every weekend, building gradually.","Train descents early, then ease off the last few days."];
+  else if(w<20)p=["Weeks 1 to 4: build an aerobic base and general strength.","Middle weeks: loaded long hikes, more vertical, hill repeats.","Final weeks: rehearse terrain and pack, then ease off."];
+  else p=["Months 1 to 3: build the aerobic engine and general strength.","Middle months: heavier legs and rising weekly vertical.","Final 12 to 16 weeks: trail-specific long days, then ease off to rest before you go."];
+  if(md)p.splice(2,0,"Add back-to-back weekends for consecutive-day load.");return p;}
+function verdict(t,fit,w){
+  const gap=t.diff-fit, gw=GRADE[t.grade].toLowerCase(), md=t.diff>t.grade;
+  if(gap<=0)return{s:"ready",h:"You're ready",why:`Your fitness matches this ${gw} trail.`,
+    plan:["Keep your activity level up until the start.","One loaded trial hike to test your gear and footwear."]};
+  const [fl,co]=THRESH[gap];
+  if(w<fl)return{s:"toosoon",h:"Too soon this time",
+    why:`Not enough time yet for a ${gw} trail from ${FITWORD[fit]}. Start a base and come back with more weeks.`,plan:planFor(w,md),fl:fl,co:co};
+  if(w<co){const why=md?`Tight. ${t.days} days back to back from ${FITWORD[fit]} is a real load. More weeks would help.`
+      :`Tight. Doable only with steady training and no missed weeks.`;
+    return{s:"hard",h:"Tough but doable",why:why,plan:planFor(w,md),fl:fl,co:co};}
+  return{s:"cond",h:"Enough time to prepare",why:`You have enough runway to arrive prepared, if you train it.`,plan:planFor(w,md),fl:fl,co:co};
 }
-
-function facts(){
-  const t=TRAILS[trail.value];
+function facts(){const t=TRAILS[trail.value];
   document.getElementById('facts').innerHTML=
-    `<span class="chip">${t.km} km</span><span class="chip">${t.days} day${t.days>1?'s':''}</span>`+
-    `<span class="chip">${GRADE[t.grade]}</span>`+
-    `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;
-}
+    `<span class="chip">${t.km} km</span><span class="chip">${t.days} day${t.days>1?'s':''}</span><span class="chip">${GRADE[t.grade]}</span>`+
+    `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;}
 let lastKey="";
-function run(animate){
+function render(animate){
   const t={...TRAILS[trail.value],name:trail.value}, w=curWeeks();
-  const r=verdict(t,fit,w);
-  const v=document.getElementById('verdict');
+  const r=verdict(t,fit,w), v=document.getElementById('verdict');
   v.style.setProperty('--accent',ACC[r.s]);
-  document.getElementById('emblem').innerHTML=ICON[r.s];
+  document.getElementById('emblem').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">${ICON[r.s]}</svg>`;
   document.getElementById('vtitle').textContent=r.h;
   document.getElementById('why').textContent=r.why;
-  const dchip=(t.diff>t.grade)?`<span class="chip">${t.days} days</span>`:"";
-  document.getElementById('vinputs').innerHTML=
-    `<span class="chip">${trail.value}</span><span class="chip grade">${GRADE[t.grade]} grade</span>${dchip}<span class="chip">${FITWORD[fit]}</span><span class="chip">${fmtVal(w)}</span>`;
-  document.getElementById('plan').innerHTML=r.plan.map(p=>
-    `<li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg><span>${p}</span></li>`).join('');
-  document.getElementById('trainnote').textContent=r.note||"";
+  const rw=document.getElementById('runway');
+  if(r.s==="ready"){rw.style.display="none";}
+  else{rw.style.display="block";
+    const fl=r.fl, co=r.co, end=Math.max(co+(t.diff>=4?8:6), w);
+    const pct=x=>Math.max(0,Math.min(100,((x-1)/(end-1))*100));
+    document.getElementById('z1').style.width=pct(fl)+"%";
+    document.getElementById('z2').style.width=(pct(co)-pct(fl))+"%";
+    document.getElementById('z3').style.width=(100-pct(co))+"%";
+    document.getElementById('you').style.left=pct(w)+"%";
+    document.getElementById('scale').innerHTML=`<span class="mk" style="left:${pct(fl)}%">${fl} wk</span><span class="mk" style="left:${pct(co)}%">${co} wk, comfortable</span>`;
+    document.getElementById('rnote').innerHTML= w>=co
+      ? `You have ${fmtVal(w)}. <span>Comfortable is about ${co} weeks. You are set.</span>`
+      : (w<fl ? `You have ${fmtVal(w)}. <span>This trip needs about ${co} weeks. Give it more time.</span>`
+             : `You have ${fmtVal(w)}. <span>Comfortable is about ${co} weeks. Add weeks if you can.</span>`);
+  }
+  document.getElementById('plan').innerHTML=r.plan.map(p=>`<li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg><span>${p}</span></li>`).join('');
+  const md=t.diff>t.grade;
+  document.getElementById('inputs').innerHTML=`<span class="chip">${t.name}</span><span class="chip grade">${GRADE[t.grade]} grade</span>${md?`<span class="chip">${t.days} days</span>`:""}<span class="chip">${FITWORD[fit]}</span><span class="chip">${fmtVal(w)}</span>`;
   const key=r.s+r.h;
   if(animate && key!==lastKey){v.classList.remove('flash');void v.offsetWidth;v.classList.add('flash');}
   lastKey=key;
 }
 function setPct(){weeks.style.setProperty('--pct',(weeks.value/30*100)+'%');
-  const txt=fmtVal(curWeeks());
-  document.getElementById('wval').textContent=txt; weeks.setAttribute('aria-valuetext',txt);}
-trail.onchange=()=>{facts();run(true);};
-weeks.oninput=()=>{setPct();run(true);};
-document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#fit button').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-checked','false');});
-  b.classList.add('on');b.setAttribute('aria-checked','true');fit=+b.dataset.v;run(true);});
-// chunk the track: anchor ticks with an emphasized density break at 24 weeks
+  const txt=fmtVal(curWeeks());document.getElementById('wval').textContent=txt; weeks.setAttribute('aria-valuetext',txt);}
 document.getElementById('ticks').innerHTML=
   [[0,"1 wk","edgeL"],[7,"8 wks",""],[23,"24 wks","brk"],[30,"1 year","edgeR"]]
-  .map(function(a){return '<span class="t '+a[2]+'" style="left:'+(a[0]/30*100)+'%"><i></i>'+a[1]+'</span>';}).join('');
-facts();setPct();run(false);
-</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener("load",rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>
-'''
+  .map(a=>'<span class="t '+a[2]+'" style="left:'+(a[0]/30*100)+'%"><i></i>'+a[1]+'</span>').join('');
+trail.onchange=()=>{facts();render(true);};
+weeks.oninput=()=>{setPct();render(true);};
+document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#fit button').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-checked','false');});b.classList.add('on');b.setAttribute('aria-checked','true');fit=+b.dataset.v;render(true);});
+facts();setPct();render(false);
+</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener("load",rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
 VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}.verdict{margin-top:0 !important}
   :root{
     --bone:#f4f2e9; --bone-2:#efece0; --ink:#20301f; --ink-soft:#4a5a44;
     --moss:#42583f; --moss-deep:#2b3f2b; --moss-bright:#5f7d3f;
     --line:#e4e1d3; --white:#ffffff; --muted:#8a917f;
-    --ready:#42583f; --cond:#5f7d3f; --hard:#a1502f; --toosoon:#3f7286;
+    --ready:#42583f; --cond:#5f7d3f; --hard:#b07d1f; --toosoon:#3f7286;
     --shadow:0 18px 44px rgba(33,48,31,.10), 0 4px 14px rgba(33,48,31,.06);
   }
   *{box-sizing:border-box}
@@ -899,6 +866,15 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
   .examples{display:flex;flex-direction:column;gap:8px}
   .examples button{text-align:left;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s}
   .examples button:hover{background:var(--bone);border-color:#cfd3c2}
+  .runway{margin:16px 0 0}
+  .runway .rtrack{position:relative;height:14px;border-radius:999px;overflow:hidden;display:flex}
+  .runway .zone{height:100%}
+  .runway .z1{background:#e7d3c9}.runway .z2{background:#efe2c4}.runway .z3{background:#dce7d0}
+  .runway .you{position:absolute;top:-5px;width:4px;height:24px;border-radius:2px;background:var(--ink);transform:translateX(-50%);box-shadow:0 0 0 3px #fff}
+  .runway .scale{position:relative;height:16px;margin-top:7px}
+  .runway .mk{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+  .runway .rnote{margin:12px 0 0;font-size:13.5px;color:var(--ink);font-weight:600}
+  .runway .rnote span{color:var(--muted);font-weight:500}
 </style></head><body><div class="wrap" style="padding:0"><div class="verdict show" style="--accent:__ACCENT__">
   <div class="bar"></div>
   <div class="body">
@@ -907,6 +883,11 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
       <div><p class="kick">Verdict</p><h2 class="vtitle">__HEAD__</h2></div>
     </div>
     <p class="why">__WHY__</p>
+    <div class="runway" id="rw">
+      <div class="rtrack"><div class="zone z1" id="z1"></div><div class="zone z2" id="z2"></div><div class="zone z3" id="z3"></div><div class="you" id="you"></div></div>
+      <div class="scale" id="scale"></div>
+      <p class="rnote" id="rnote"></p>
+    </div>
     <p class="computed">Computed from</p>
     <div class="inputs">__INPUTS__</div>
     <ul class="plan">__PLAN__</ul>
@@ -915,7 +896,7 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
       <p class="disc">Approximate fitness assessment, not a medical opinion.</p>
     </div>
   </div>
-</div></div><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
+</div></div><script>(function(){var S="__STATUS__",W=__WK__,FL=__FL__,CO=__CO__;var rw=document.getElementById('rw');if(!rw)return;if(S==="ready"||!CO){rw.style.display="none";return;}var end=Math.max(CO+6,W);function pct(x){return Math.max(0,Math.min(100,((x-1)/(end-1))*100));}document.getElementById('z1').style.width=pct(FL)+"%";document.getElementById('z2').style.width=(pct(CO)-pct(FL))+"%";document.getElementById('z3').style.width=(100-pct(CO))+"%";document.getElementById('you').style.left=pct(W)+"%";document.getElementById('scale').innerHTML='<span class="mk" style="left:'+pct(FL)+'%">'+FL+' wk</span><span class="mk" style="left:'+pct(CO)+'%">'+CO+' wk, comfortable</span>';var n=document.getElementById('rnote');n.innerHTML=W>=CO?'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. You are set.</span>':(W<FL?'You have '+W+' weeks. <span>This trip needs about '+CO+' weeks. Give it more time.</span>':'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. Add weeks if you can.</span>');})();</script><script>(function(){function rz(){var h=Math.ceil(document.documentElement.scrollHeight);window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
 
 _VICON = {
  "ready": '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>',
@@ -980,13 +961,15 @@ with tab_chat:
             box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
             v = m.get("verdict")
             if v:
-                acc = {"ready": "#42583f", "cond": "#5f7d3f", "hard": "#a1502f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
+                acc = {"ready": "#42583f", "cond": "#5f7d3f", "hard": "#b07d1f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
                 inputs_html = "".join(f'<span class="chip{" grade" if str(x).endswith("grade") else ""}">{x}</span>' for x in v.get("inputs", []))
                 plan_html = "".join(f'<li>{_CHK}<span>{s}</span></li>' for s in v["plan"])
                 card = (VERDICT_CARD
                         .replace("__ACCENT__", acc).replace("__ICON__", _VICON.get(v["status"], ""))
                         .replace("__HEAD__", v["head"]).replace("__WHY__", v.get("why", ""))
-                        .replace("__INPUTS__", inputs_html).replace("__PLAN__", plan_html))
+                        .replace("__INPUTS__", inputs_html).replace("__PLAN__", plan_html)
+                        .replace("__STATUS__", v["status"]).replace("__WK__", str(v.get("weeks", 0)))
+                        .replace("__FL__", str(v.get("floor", 0))).replace("__CO__", str(v.get("comfort", 0))))
                 with box:
                     components.html(card, height=470, scrolling=False)
                 if m.get("show_text"):
