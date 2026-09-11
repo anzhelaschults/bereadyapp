@@ -639,7 +639,7 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
     <div class="field">
       <p class="lbl" id="lbl-fit">Fitness level</p>
       <div class="toggle" id="fit" role="radiogroup" aria-labelledby="lbl-fit">
-        <button role="radio" aria-checked="true" class="on" data-v="1">I don't train</button>
+        <button role="radio" aria-checked="false" data-v="1">I don't train</button>
         <button role="radio" aria-checked="false" data-v="2">Sometimes active</button>
         <button role="radio" aria-checked="false" data-v="3">I train regularly</button>
       </div>
@@ -659,6 +659,7 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
       <div class="vhead"><div class="emblem" id="emblem"></div>
         <div><p class="kick">Verdict</p><h2 class="vtitle" id="vtitle"></h2></div></div>
       <p class="why" id="why"></p>
+      <div id="result">
       <div class="runway" id="runway">
         <div class="rtrack"><div class="zone z1" id="z1"></div><div class="zone z2" id="z2"></div><div class="zone z3" id="z3"></div><div class="you" id="you"></div></div>
         <div class="scale" id="scale"></div>
@@ -668,6 +669,7 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
       <div class="inputs" id="inputs"></div>
       <ul class="plan" id="plan"></ul>
       <p class="disc">Fitness readiness only, not a medical or mountain-safety clearance.</p>
+      </div>
       <div class="foot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</div>
     </div>
   </div>
@@ -690,7 +692,7 @@ const THRESH={1:[3,6],2:[6,12],3:[12,20]};
 const WEEKS=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,28,32,36,40,44,48,52];
 const ICON={ready:'<path d="M20 6L9 17l-5-5"/>',cond:'<path d="M12 19V5M5 12l7-7 7 7"/>',hard:'<path d="M3 20h18L12 4z"/>',toosoon:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/>'};
 const ACC={ready:"var(--ready)",cond:"var(--cond)",hard:"var(--hard)",toosoon:"var(--toosoon)"};
-let fit=1;
+let fit=null;
 const trail=document.getElementById('trail'), weeks=document.getElementById('weeks');
 Object.keys(TRAILS).forEach(n=>{const o=document.createElement('option');o.textContent=n;trail.appendChild(o);});
 const curWeeks=()=>WEEKS[+weeks.value];
@@ -718,8 +720,17 @@ function facts(){const t=TRAILS[trail.value];
     `<div class="risk">Watch: <b>${t.risk}</b>.</div>`;}
 let lastKey="";
 function render(animate){
+  const v=document.getElementById('verdict'), res=document.getElementById('result');
+  if(fit===null){
+    v.style.setProperty('--accent','#8a917f');
+    document.getElementById('emblem').innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
+    document.getElementById('vtitle').textContent='Your verdict';
+    document.getElementById('why').textContent='Choose your training level above, and your verdict appears here.';
+    res.style.display='none'; lastKey=''; return;
+  }
+  res.style.display='';
   const t={...TRAILS[trail.value],name:trail.value}, w=curWeeks();
-  const r=verdict(t,fit,w), v=document.getElementById('verdict');
+  const r=verdict(t,fit,w);
   v.style.setProperty('--accent',ACC[r.s]);
   document.getElementById('emblem').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">${ICON[r.s]}</svg>`;
   document.getElementById('vtitle').textContent=r.h;
