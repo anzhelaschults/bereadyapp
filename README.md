@@ -1,75 +1,97 @@
 # BeReady
 
-**Can you handle this trail?** BeReady is an honest AI assistant that tells first-time hikers whether they can handle a specific trail and exactly how to prepare.
+**Can you handle this trail?** A deterministic fitness-preparation check for nine routes in Norway and Iceland. Verdicts come from Python policy, not a model. Unknown trails, missing inputs and medical questions do not receive invented answers.
 
-<p align="center">
-  <img src="preview.png" alt="BeReady app preview: hero, readiness form, and an honest verdict with a week-by-week plan" width="360">
-</p>
+This repository contains the existing Streamlit MVP and the commercial Next.js application. The decision documents and throwaway mockups live outside the code repository. See [architecture](docs/architecture.md), [contracts](docs/contracts.md), and [implementation checklist](tasks/todo.md).
 
-Live app: https://bereadyapp.streamlit.app
+## Run the commercial app locally
 
-Built as an AI product engineering project, part of an MSc in Product Management and AI. The goal was not to wrap a chatbot around a prompt, but to design an AI system that stays honest and refuses to guess.
-
-## What it does
-
-A first-time hiker tells BeReady the trail, their training level, and how many weeks they have. BeReady returns one clear verdict, ready, almost ready, tough but doable, or too soon, along with a concrete week-by-week preparation plan. If it does not have verified data on a trail, it says so instead of making something up.
-
-## Why "honest"
-
-Most AI assistants are happy to sound confident about anything. For a product that affects a real decision on a real mountain, that is a problem. BeReady is built around three honesty rules:
-
-- **The verdict is computed, not generated.** Readiness comes from a deterministic function with typed inputs and a clear contract, so it cannot be hallucinated. The model only decides when to call it.
-- **It refuses on unknown trails.** If a trail is not in the verified database, BeReady asks for real data instead of guessing.
-- **It knows its limits.** BeReady gives fitness readiness, not medical advice, and defers to a doctor for injuries or conditions.
-
-## How the AI is designed
-
-- **Deterministic readiness tool.** The core logic (`readiness_score` / `readiness_from_text`) takes the trail, fitness level, and time available and returns a verdict plus a plan. Typed inputs, a clear docstring, no model in the loop for the number itself.
-- **Two answer modes in the chat.** The default is a single Gemini agent with the deterministic readiness tool: fast, cheap, and reliable. A second mode runs a real Agno team of three agents, a Researcher that gathers verified facts (and can web-search time-sensitive ones such as whether a trail is open this season), an Analyst that interprets them, and a reasoning coordinator that writes the final answer. In both modes the verdict still comes only from the deterministic tool, so it cannot be hallucinated.
-- **A hard safety boundary.** Questions about injuries, pain, or medical conditions are routed to a clear "see a doctor" response, not a readiness score.
-- **Framework migration as a proof point.** The readiness tool was ported from LangChain to Agno almost unchanged. That showed the framework is a wrapper, and the real product lives in the tool, the prompt, and the data.
-
-## Stack
-
-- Python
-- Streamlit (interface, deployed on Streamlit Community Cloud)
-- Google Gemini (LLM)
-- Agno (agent framework)
-
-## How it is built
-
-The app has two modes:
-
-- **Check readiness.** A deterministic form. Runs instantly, needs no API key, and cannot hallucinate.
-- **Ask BeReady.** A chat with two answer modes. *Single agent*: one Gemini agent reads a free-form question and calls the same deterministic readiness tool. *Agent team*: a Researcher gathers facts, an Analyst interprets them, and a reasoning coordinator writes the final answer. Both need a `GOOGLE_API_KEY`; the form works without one. The single agent is the default because it does not depend on several model calls.
-
-This split means the core readiness check keeps working even with the model off.
-
-## Run it locally
+Requires Python 3.12+, Node.js 22+, npm and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+uv sync --frozen --extra test
+uv run python -m beready.catalog --check
+uv run uvicorn beready.api:app --host 127.0.0.1 --port 8000
 ```
 
-To enable the chat tab, set a Google Gemini API key:
+In another terminal:
 
 ```bash
-export GOOGLE_API_KEY=your_key_here
+cd web
+npm ci
+cp .env.example .env.local
+npm run dev
 ```
 
-On Streamlit Community Cloud, add `GOOGLE_API_KEY` under Manage app, Secrets.
+Open http://localhost:3000. No account or LLM key is needed to check trails, discover/compare or view the full dated preparation plan. The Python service must be running for dated plans. The catalog-based verdict continues to work if it is unavailable.
 
-## Project structure
+The training level starts unselected. Choose one and move the weeks slider. The optional hike date appears only with the plan. Saving and persistent progress require configured Supabase, never a fake local account. See [account setup](docs/account-setup.md).
 
+## Features and boundaries
+
+- Shared Python scorer and checked-in catalog. Every verdict state has a preparation runway.
+- Level-adaptive challenge/payoff content and typical season notes with review-pending provenance.
+- Personalized discovery, explicit filters and comparison of two or three trails. Too-soon trails stay visible by default.
+- Bounded natural-language discovery without a model inventing inputs or verdicts.
+- Full free dated plan, conservative missed-week adaptation and server-computed completion progress.
+- Managed email sign-in, owner-scoped saved plans/session logs and a company pilot workspace.
+- Date-specific forecast adapter with independent unavailable/out-of-horizon fallback. Closure and route-snow safety remain unknown, never inferred from weather.
+- Optional hosted operator checkout, disabled until configured and approved. Viewing a plan is never paywalled.
+
+**Not a production release.** Trail/exposure and conditioning approval, provider configuration, real staging account/payment tests, weather licensing, privacy/legal sign-off and an operator pilot are separate [release gates](docs/release-checklist.md). Progress measures logged sessions, not physiological readiness or mountain safety.
+
+## Verification
+
+```bash
+uv run pytest
+uv run python -m beready.catalog --check
+cd web
+npm run lint
+npm run typecheck
+npm test
+npm run build
+E2E_PRODUCTION=true npm run e2e
+npm audit --audit-level=high
 ```
-app.py                  Streamlit app: deterministic form + Gemini-backed chat
-hero.jpg                Hero banner photo (Þórsmörk, Iceland)
-preview.png             App preview used in this README
-requirements.txt        streamlit, agno, google-genai
-.streamlit/config.toml  Theme (Icelandic highlands palette)
+
+Browser setup: `cd web && npx playwright install chromium`. Browser tests use isolated test profiles and capture screenshots under `docs/screenshots/`. For real owner-isolation tests, follow the SQL instructions in [account setup](docs/account-setup.md). External providers are stubbed at their boundaries in unit tests, never represented as verified live integration.
+
+## Catalog changes
+
+Edit `beready/trails.py` or `beready/core.py`, add regression tests, then run:
+
+```bash
+uv run python -m beready.catalog --write
+uv run pytest
 ```
 
-## Notes
+Commit `web/public/catalog.json` with the policy change. Never add scoring thresholds or status computation to browser code. New route facts need source and content-owner approval. The catalog includes whole weeks 1 through 52.
 
-Trail data currently covers a small set of verified routes (Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, Preikestolen). Adding a trail means adding verified length, elevation, and difficulty, not letting the model estimate it. That is the point.
+## Existing Streamlit MVP
+
+```bash
+uv sync --frozen --extra legacy
+uv run --extra legacy streamlit run app.py
+```
+
+Live MVP: https://bereadyapp.streamlit.app
+
+Both the form and Ask use the shared deterministic policy without an API key. The former model-generated chat path has been removed so it cannot change user inputs or override a verdict. Existing transcripts from that path are cleared on upgrade.
+
+## Project map
+
+```text
+app.py                   Existing Streamlit interface
+beready/core.py          Deterministic policy, plans and progress
+beready/trails.py        Curated route facts and content provenance
+beready/catalog.py       Reproducible browser catalog compiler
+beready/api.py           Stateless FastAPI endpoints
+beready/conditions.py    Validated forecast adapter and fallback
+beready/discovery.py     Guarded natural-language catalog tool
+web/                     Next.js UI and same-origin account/API handlers
+supabase/                Owner-isolated schema and SQL tests
+tests/                   Python policy and API regression tests
+docs/                    Contracts, decisions, screenshots and release gates
+```
+
+See [operations](docs/operations.md) for configuration, telemetry and rollback. Do not deploy from this checklist without a named release owner and the required approvals.

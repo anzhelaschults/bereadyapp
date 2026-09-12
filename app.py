@@ -3,20 +3,23 @@ BeReady, Streamlit interface (English, for public deployment and the Behance cas
 An honest answer on whether someone is ready for a specific trail, and what to do next.
 
 Two modes:
-- Check readiness: a deterministic form. Runs instantly, no API key, cannot hallucinate.
-- Ask BeReady: a chat where a Gemini agent reads a free-form question and calls the same
-  deterministic readiness tool. Needs a GOOGLE_API_KEY secret; the form works without one.
+- Check readiness: a deterministic form. Runs instantly and needs no API key.
+- Ask BeReady: a deterministic chat using the same guarded readiness policy.
 
 Run locally:
     pip install -r requirements.txt
     streamlit run app.py
 """
 
-import os
-import re
 import base64
 import pathlib
+import json
 import streamlit as st
+
+from beready.catalog import compile_catalog
+from beready.core import assess as core_assess
+from beready.discovery import answer as guarded_answer
+from beready.trails import TRAILS as CORE_TRAILS
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="BeReady", page_icon="🏔️", layout="centered")
@@ -114,329 +117,30 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Trail database (Norway and Iceland) ----------
-# grade = official technical grade (Norwegian national scale / park descriptions).
-# diff  = effective difficulty the verdict uses: grade plus a bump for multi-day
-#         treks, where days back to back are the real load, not the terrain.
-TRAILS = {
-    "laugavegur":     {"name": "Laugavegur (Iceland)",     "km": 55, "days": 4, "grade": 2, "diff": 3, "risk": "long hiking days four days in a row"},
-    "fimmvorduhals":  {"name": "Fimmvorduhals (Iceland)",  "km": 25, "days": 1, "grade": 3, "diff": 3, "risk": "a steep, long descent that stresses the knees"},
-    "trolltunga":     {"name": "Trolltunga (Norway)",      "km": 28, "days": 1, "grade": 4, "diff": 4, "risk": "a long day with big elevation gain"},
-    "romsdalseggen":  {"name": "Romsdalseggen (Norway)",   "km": 11, "days": 1, "grade": 4, "diff": 4, "risk": "a narrow, exposed ridge with chain scrambles"},
-    "besseggen":      {"name": "Besseggen (Norway)",       "km": 14, "days": 1, "grade": 3, "diff": 3, "risk": "a sharp, exposed ridge"},
-    "kjeragbolten":   {"name": "Kjeragbolten (Norway)",    "km": 12, "days": 1, "grade": 3, "diff": 3, "risk": "chain-assisted scrambles and big drops"},
-    "preikestolen":   {"name": "Preikestolen (Norway)",    "km": 8,  "days": 1, "grade": 3, "diff": 3, "risk": "two steep sections and exposed drops near the top"},
-    "dalsnuten":      {"name": "Dalsnuten (Norway)",       "km": 3,  "days": 1, "grade": 1, "diff": 1, "risk": "a short steep push to the summit on an otherwise gentle trail"},
-    "gaustatoppen":   {"name": "Gaustatoppen (Norway)",    "km": 9,  "days": 1, "grade": 2, "diff": 2, "risk": "a rocky final stretch after a steady climb"},
-}
-GRADE_WORD = {1: "Easy", 2: "Moderate", 3: "Demanding", 4: "Very demanding"}
-DIFF_WORD = {1: "low", 2: "moderate", 3: "high"}
+# ---------- Shared policy bridge ----------
 FIT_MAP = {"I don't train": 1, "Sometimes active": 2, "I train regularly": 3}
-FIT_WORD = {1: "low", 2: "moderate", 3: "high"}
-# Preparation time (weeks) that a fitness gap needs: (too-soon floor, comfortable runway).
-THRESH = {1: (3, 6), 2: (6, 12), 3: (12, 20)}
-GAPWORD = {1: "one step short", 2: "two steps short", 3: "a big jump up"}
-TRAIN_NOTE = "These weeks only count if you actually train them."
 
-
-def _plan_for(weeks, multiday):
-    """Training plan scaled to the runway: tight, medium, or long build."""
-    w = weeks or 0
-    if w < 8:
-        p = ["Start now. Three to four sessions a week: easy aerobic walks plus one strength day (step-ups, lunges, core).",
-             "A loaded long hike every weekend, adding about 10 percent time and vertical each week.",
-             "Train the downhill early so descents don't wreck your legs, then ease off your training for the last five days."]
-        if multiday:
-            p.insert(2, "Add one back-to-back weekend to rehearse consecutive days.")
-        return p
-    if w < 20:
-        p = ["Weeks 1 to 4: build an aerobic base, easy volume, strength twice a week.",
-             "Middle weeks: progressive loaded long hikes, more vertical, hill repeats.",
-             "Final weeks: rehearse the real terrain and pack weight, then ease off your training the last week."]
-        if multiday:
-            p.insert(2, "Add back-to-back weekends to prepare for consecutive days.")
-        return p
-    p = ["Months 1 to 3: build the aerobic engine and general strength, steady and consistent, conditioning tendons for the load.",
-         "Middle months: heavier leg strength and rising weekly vertical on loaded hikes.",
-         "Final 12 to 16 weeks: the trail-specific block, long days and terrain practice, then ease off to rest. Take an easier week every third or fourth week."]
-    if multiday:
-        p.insert(2, "Rehearse back-to-back days in the final block.")
-    return p
-
-
-def _plural(n, word):
-    """'1 day', '4 days', '1 week', '8 weeks'."""
-    return f"{n} {word}" + ("" if n == 1 else "s")
-
-
-def _verdict(rec, fit, weeks):
-    """Verdict from the fitness gap and the preparation runway (weeks)."""
-    gap = rec["diff"] - fit
-    multiday = rec["diff"] > rec["grade"]
-    if gap <= 0:
-        p = ["Hold your current activity level until the start.",
-             "One trial hike with a loaded pack to test your gear and footwear."]
-        if multiday:
-            p.append("Rehearse a back-to-back weekend so consecutive days are not a surprise.")
-        return "ready", "You're ready", p
-    tt, to = THRESH[gap]
-    if weeks is None or weeks < tt:
-        return "toosoon", "Too soon this time", [
-            "Choose a lower-difficulty trail this season (for example Gaustatoppen or Preikestolen).",
-            "Start regular walks and strength now, and come back when you have more time.",
-        ]
-    if weeks < to:
-        return "hard", "Tough but doable", _plan_for(weeks, multiday)
-    return "cond", "Enough time to prepare", _plan_for(weeks, multiday)
-
-FIT_FRIENDLY = {1: "not training", 2: "sometimes active", 3: "training regularly"}
-
-
-def _why(rec, status, fit, weeks):
-    gw = GRADE_WORD[rec["grade"]].lower()
-    multiday = rec["diff"] > rec["grade"]
-    gap = rec["diff"] - fit
-    wl = _plural(weeks, "week") if weeks else "no timeframe"
-    if status == "ready":
-        return f"Your fitness matches this {gw} trail. Keep it up and do one trial hike with a full pack."
-    tt, to = THRESH.get(gap, (0, 0))
-    if multiday:
-        midbody = (f"Technically {rec['name']} is a {gw} trail, but {_plural(rec['days'], 'day')} "
-                   "back to back are the real load for your level.")
-    else:
-        midbody = f"You are {GAPWORD.get(gap, 'short')} for a {gw} trail ({rec['risk']})."
-    if status == "toosoon":
-        return (f"{midbody} From your level that takes around {to} weeks of training, well past the "
-                f"{wl} you have. Pick an easier trail this season, or give it more runway.")
-    if status == "hard":
-        return (f"{midbody} {wl} clears the {tt}-week floor but sits under the {to} weeks a comfortable "
-                f"build needs, so it is doable only if you train consistently and do not miss sessions. {TRAIN_NOTE}")
-    return f"{midbody} {wl} is enough runway to arrive genuinely prepared if you start now. {TRAIN_NOTE}"
 
 def assess(trail_name, fitness_label, weeks):
-    """Structured readiness (kept for reference and tests)."""
-    rec = next(t for t in TRAILS.values() if t["name"] == trail_name)
-    fit = FIT_MAP[fitness_label]
-    status, head, plan = _verdict(rec, fit, weeks)
-    inputs = [rec["name"], f"{GRADE_WORD[rec['grade']]} grade"]
-    if rec["diff"] > rec["grade"]:
-        inputs.append(_plural(rec["days"], "day"))
-    inputs += [FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")]
-    return {"status": status, "head": head, "plan": plan,
-            "why": _why(rec, status, fit, weeks), "inputs": inputs}
-
-
-def _weeks_from_text(q: str):
-    """Parse the timeframe from a free-form question, in weeks.
-    Understands "8 weeks" as before, and now also months: "2 months" -> 8,
-    "a month and a half" -> 6, "one month" -> 4. Returns None when no clear
-    timeframe is given; the verdict logic treats that honestly, as before."""
-    m = re.search(r"(\d+(?:[.,]\d+)?)\s*week", q)
-    if m:
-        return int(float(m.group(1).replace(",", ".")))
-    m = re.search(r"(\d+(?:[.,]\d+)?)\s*month", q)
-    if m:
-        return round(float(m.group(1).replace(",", ".")) * 4)
-    if "month and a half" in q:
-        return 6
-    if re.search(r"\b(?:a|one)\s+month\b", q):
-        return 4
-    if re.search(r"couple\s+of\s+months", q):
-        return 8
-    return None
+    """Compatibility wrapper for callers using display labels."""
+    trail_id = next(k for k, rec in CORE_TRAILS.items() if rec["name"] == trail_name)
+    return core_assess(trail_id, FIT_MAP[fitness_label], weeks)
 
 
 def readiness_from_text(query: str) -> str:
-    """Same rules as the form, but parses a free-form question. Used by the chat agent."""
-    if not query or not query.strip():
-        return "Tell me the trail, your training level, and how many weeks you have."
-    q = query.lower()
-    if any(w in q for w in ["injury", "injured", "pain", "hurt", "sick", "illness", "prescribe", "treatment", "medication"]):
-        return ("I'm not a doctor and won't give medical advice. If you have an injury, pain, or a "
-                "health condition, please talk to a doctor before hiking. I can still assess a trail "
-                "against your fitness once you're cleared to hike.")
-    rec = next((t for k, t in TRAILS.items() if k in q), None)
-    if rec is None:
-        return ("That trail isn't covered yet. For now BeReady prepares for trails in Iceland and "
-                "Norway: Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, and Preikestolen. "
-                "More countries and trails are coming. Pick one of these for an honest verdict.")
-    if any(w in q for w in ["don't train", "dont train", "no training", "never train", "sedentary", "beginner", "not fit", "unfit", "out of shape"]):
-        fit = 1
-    elif any(w in q for w in ["regularly", "every week", "often", "very fit", "athletic", "train a lot", "in good shape"]):
-        fit = 3
-    elif any(w in q for w in ["sometimes", "occasionally", "moderate", "gym", "a bit", "somewhat active", "now and then"]):
-        fit = 2
-    else:
-        # Honest default: don't assume a fitness level. Ask, the same way we refuse unknown trails.
-        # Stash the question so the chat can offer inline training-level buttons that keep the
-        # trail and timeframe, no retyping.
-        try:
+    """Keep session rendering in Streamlit, policy and parsing in shared Python."""
+    result = guarded_answer(query or "")
+    verdict = result.get("assessment")
+    st.session_state.pop("_chat_verdict", None)
+    st.session_state.pop("_needs_fitness", None)
+    if verdict is None:
+        if "training level" in result["message"]:
             st.session_state["_needs_fitness"] = True
             st.session_state["_fitness_query"] = query
-        except Exception:
-            pass
-        return ("Almost there, I just need your training level. Do you train regularly, "
-                "sometimes, or not at all? Then I can give you an honest verdict.")
-    weeks = _weeks_from_text(q)
-    if weeks is None:
-        return "How many weeks until the hike? The verdict depends on how much time you have to train for it."
-    status, head, plan = _verdict(rec, fit, weeks)
-    tail = f" You have {_plural(weeks, 'week')}." if weeks else ""
-    plan_txt = "\n".join(f"- {s}" for s in plan)
-    # Stash the structured verdict so the chat renders the same card as Quick check.
-    try:
-        _inputs = [rec["name"], f"{GRADE_WORD[rec['grade']]} grade"]
-        if rec["diff"] > rec["grade"]:
-            _inputs.append(_plural(rec["days"], "day"))
-        _inputs += [FIT_FRIENDLY[fit], (_plural(weeks, "week") if weeks else "no timeframe")]
-        _gap = rec["diff"] - fit
-        _fl, _co = THRESH.get(_gap, (0, 0))
-        st.session_state["_chat_verdict"] = {
-            "status": status, "head": head, "plan": plan,
-            "why": _why(rec, status, fit, weeks), "inputs": _inputs,
-            "weeks": weeks or 0, "floor": _fl, "comfort": _co,
-        }
-    except Exception:
-        pass
-    return (f"{rec['name']}, {GRADE_WORD[rec['grade']]} grade, your level {FIT_WORD[fit]}.{tail}\n\n"
-            f"**{head}**\n\nPlan:\n{plan_txt}\n\n"
-            f"*This is an approximate fitness assessment, not a medical opinion.*")
-
-
-@st.cache_resource(show_spinner=False)
-def get_agent():
-    from agno.agent import Agent
-    from agno.models.google import Gemini
-    from agno.tools import tool
-
-    @tool
-    def readiness_score(query: str) -> str:
-        """Give an honest readiness verdict for a specific trail. Needs the trail name, the
-        person's training level, and how many weeks until the hike. Use this whenever the user
-        asks whether they are ready for a trail.
-
-        Args:
-            query: Pass the user's question WORD FOR WORD, including their exact training level
-                (for example "I don't train") and timeframe. Do not drop, upgrade, or paraphrase
-                the training level, the verdict depends on it.
-
-        Returns:
-            A readiness verdict and plan, or an honest refusal if the trail is unknown.
-        """
-        return readiness_from_text(query)
-
-    return Agent(
-        model=Gemini(id="gemini-3.5-flash-lite"),
-        tools=[readiness_score],
-        instructions=[
-            "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
-            "For any question about readiness for a trail, call readiness_score and base your answer on it.",
-            "When you call readiness_score, pass the user's full question verbatim, including their "
-            "exact training level and timeframe. Never drop, upgrade, or soften the training level.",
-            "Report the verdict readiness_score returns exactly. Never make it more optimistic than the tool.",
-            "You are not a doctor. For injuries or illness, tell the person to see a doctor.",
-            "Never invent trail facts.",
-            "If readiness_score refuses (an unknown trail, or a request for missing details), report that "
-            "refusal and stop. Do not add your own readiness estimate, difficulty guess, or training "
-            "timeline for an uncovered trail. Only point the user to the trails BeReady covers: "
-            "Laugavegur, Fimmvorduhals, Trolltunga, Besseggen, Preikestolen.",
-            "If a message is not a readiness question (no trail, or unclear), do not re-introduce "
-            "yourself or list the trails. Reply with exactly this one line and nothing else: "
-            "I work from three things: the trail, your training level, and the weeks you have. Tell me those.",
-            "Be warm, concise, and specific.",
-        ],
-        markdown=True,
-        retries=3,
-        delay_between_retries=8,
-        exponential_backoff=True,
-    )
-
-
-@st.cache_resource(show_spinner=False)
-def get_team():
-    """A real multi-agent team: a Researcher who gathers verified facts, an Analyst who
-    interprets them, and a reasoning coordinator that enforces the honesty rules and writes
-    the final answer. Every readiness verdict still comes from the deterministic readiness_score
-    tool, so the team cannot hallucinate the number."""
-    from agno.agent import Agent
-    from agno.team import Team
-    from agno.models.google import Gemini
-    from agno.tools import tool
-
-    @tool
-    def readiness_score(query: str) -> str:
-        """Give an honest readiness verdict for a specific trail. Needs the trail name, the
-        person's training level, and how many weeks until the hike.
-
-        Args:
-            query: Pass the user's question WORD FOR WORD, including their exact training level
-                (for example "I don't train") and timeframe. Do not drop, upgrade, or paraphrase
-                the training level, the verdict depends on it.
-
-        Returns:
-            A readiness verdict and plan, or an honest refusal if the trail is unknown.
-        """
-        return readiness_from_text(query)
-
-    model = Gemini(id="gemini-3.5-flash-lite")
-
-    # The Researcher can check time-sensitive facts (season, closures) via web search.
-    # Optional: if the tool is unavailable, the team still works with readiness_score alone.
-    research_tools = [readiness_score]
-    try:
-        from agno.tools.duckduckgo import DuckDuckGoTools
-        research_tools.append(DuckDuckGoTools())
-    except Exception:
-        pass
-
-    researcher = Agent(
-        name="Researcher",
-        role="Gather verified facts",
-        model=model,
-        tools=research_tools,
-        instructions=[
-            "Collect only verified facts for the question.",
-            "For readiness, call readiness_score and pass the user's full question verbatim, "
-            "including their exact training level (for example 'I don't train') and timeframe. "
-            "Never drop, upgrade, or paraphrase the training level.",
-            "You may web-search only for time-sensitive facts, such as whether a trail is open this season.",
-            "Never invent trail data. If the trail is unknown to readiness_score, report that honestly.",
-        ],
-    )
-    analyst = Agent(
-        name="Analyst",
-        role="Interpret and frame",
-        model=model,
-        instructions=[
-            "Turn the Researcher's facts into a clear, honest recommendation.",
-            "Separate facts from interpretation. Do not invent numbers or trail data.",
-            "For a trail readiness_score does not cover, do not estimate readiness or difficulty. Say it is not covered and stop.",
-        ],
-    )
-    return Team(
-        name="BeReady team",
-        members=[researcher, analyst],
-        model=model,
-        tools=[readiness_score],
-        instructions=[
-            "You are BeReady, an honest hiking-readiness assistant. Answer in English.",
-            "Delegate fact-finding to the Researcher and interpretation to the Analyst, then give one clear answer.",
-            "Base every readiness verdict on readiness_score. Never compute or invent the verdict yourself.",
-            "Open with the exact verdict wording that readiness_score returns (for example, You're ready, or Too soon), then add context. Do not soften, reword, or make the verdict more optimistic than the tool.",
-            "If readiness_score refuses (an unknown trail, or missing details), report that refusal and "
-            "stop. Do not add your own readiness estimate, difficulty guess, or training timeline for an "
-            "uncovered trail. Only point the user to the trails BeReady covers.",
-            "You are not a doctor. For injuries, pain, or illness, tell the person to see a doctor and give no verdict.",
-            "If a message is not a readiness question (no trail, or unclear), do not re-introduce "
-            "yourself or list the trails. Reply with exactly this one line and nothing else: "
-            "I work from three things: the trail, your training level, and the weeks you have. Tell me those.",
-            "Be warm, concise, and specific.",
-        ],
-        markdown=True,
-        retries=3,
-        delay_between_retries=8,
-        exponential_backoff=True,
-    )
+        return result["message"]
+    st.session_state["_chat_verdict"] = {**verdict, "comfort": verdict["comfortable"]}
+    plan_text = "\n".join(f"- {step}" for step in verdict["plan"])
+    return f"{result['message']}\n\nPlan:\n{plan_text}\n\nFitness preparation only, not medical or mountain-safety clearance."
 
 
 HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}
@@ -656,7 +360,7 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
     <div class="field">
       <div class="slider-row"><p class="lbl" style="margin:0" id="lbl-weeks">Time until the hike</p><span class="val" id="wval">8 weeks</span></div>
       <div class="track">
-        <input type="range" id="weeks" min="0" max="30" value="7" aria-labelledby="lbl-weeks" aria-valuetext="8 weeks">
+        <input type="range" id="weeks" min="0" max="51" value="7" aria-labelledby="lbl-weeks" aria-valuetext="8 weeks">
         <div class="ticks" id="ticks"></div>
       </div>
     </div>
@@ -684,21 +388,10 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   </div>
 </div>
 <script>
-const TRAILS={
- "Dalsnuten (Norway)":{km:3,days:1,grade:1,diff:1,risk:"a short steep push to the summit on an otherwise gentle trail"},
- "Gaustatoppen (Norway)":{km:9,days:1,grade:2,diff:2,risk:"a rocky final stretch after a steady climb"},
- "Laugavegur (Iceland)":{km:55,days:4,grade:2,diff:3,risk:"long hiking days four days in a row"},
- "Preikestolen (Norway)":{km:8,days:1,grade:3,diff:3,risk:"two steep sections and exposed drops near the top"},
- "Besseggen (Norway)":{km:14,days:1,grade:3,diff:3,risk:"a sharp, exposed ridge"},
- "Fimmvorduhals (Iceland)":{km:25,days:1,grade:3,diff:3,risk:"a steep, long descent that stresses the knees"},
- "Kjeragbolten (Norway)":{km:12,days:1,grade:3,diff:3,risk:"chain-assisted scrambles and big drops"},
- "Trolltunga (Norway)":{km:28,days:1,grade:4,diff:4,risk:"a long day with big elevation gain"},
- "Romsdalseggen (Norway)":{km:11,days:1,grade:4,diff:4,risk:"a narrow, exposed ridge with chain scrambles"},
-};
+const CATALOG=__CATALOG__;
+const TRAILS=Object.fromEntries(CATALOG.trails.map(t=>[t.name,t]));
 const GRADE={1:"Easy",2:"Moderate",3:"Demanding",4:"Very demanding"};
-const FITWORD={1:"not training",2:"sometimes active",3:"training regularly"};
-const THRESH={1:[3,6],2:[6,12],3:[12,20]};
-const WEEKS=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,28,32,36,40,44,48,52];
+const WEEKS=CATALOG.weeks;
 const ICON={ready:'<path d="M20 6L9 17l-5-5"/>',cond:'<path d="M12 19V5M5 12l7-7 7 7"/>',hard:'<path d="M3 20h18L12 4z"/>',toosoon:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/>'};
 const ACC={ready:"var(--ready)",cond:"var(--cond)",hard:"var(--hard)",toosoon:"var(--toosoon)"};
 let fit=null;
@@ -706,23 +399,7 @@ const trail=document.getElementById('trail'), weeks=document.getElementById('wee
 Object.keys(TRAILS).forEach(n=>{const o=document.createElement('option');o.textContent=n;trail.appendChild(o);});
 const curWeeks=()=>WEEKS[+weeks.value];
 function fmtVal(w){ return w===1 ? '1 week' : (w+' weeks'); }
-function planFor(w,md){let p;
-  if(w<8)p=["Start now: easy aerobic walks plus one strength day each week.","Add a loaded long hike every weekend, building gradually.","Train descents early, then ease off the last few days."];
-  else if(w<20)p=["Weeks 1 to 4: build an aerobic base and general strength.","Middle weeks: loaded long hikes, more vertical, hill repeats.","Final weeks: rehearse terrain and pack, then ease off."];
-  else p=["Months 1 to 3: build the aerobic engine and general strength.","Middle months: heavier legs and rising weekly vertical.","Final 12 to 16 weeks: trail-specific long days, then ease off to rest before you go."];
-  if(md)p.splice(2,0,"Add back-to-back weekends for consecutive-day load.");return p;}
-function verdict(t,fit,w){
-  const gap=t.diff-fit, gw=GRADE[t.grade].toLowerCase(), md=t.diff>t.grade;
-  if(gap<=0)return{s:"ready",h:"You're ready",why:`Your fitness matches this ${gw} trail.`,
-    plan:["Keep your activity level up until the start.","One loaded trial hike to test your gear and footwear."]};
-  const [fl,co]=THRESH[gap];
-  if(w<fl)return{s:"toosoon",h:"Too soon this time",
-    why:`Not enough time yet for a ${gw} trail from ${FITWORD[fit]}. Start a base and come back with more weeks.`,plan:planFor(w,md),fl:fl,co:co};
-  if(w<co){const why=md?`Tight. ${t.days} days back to back from ${FITWORD[fit]} is a real load. More weeks would help.`
-      :`Tight. Doable only with steady training and no missed weeks.`;
-    return{s:"hard",h:"Tough but doable",why:why,plan:planFor(w,md),fl:fl,co:co};}
-  return{s:"cond",h:"Enough time to prepare",why:`You have enough runway to arrive prepared, if you train it.`,plan:planFor(w,md),fl:fl,co:co};
-}
+function lookupAssessment(t,fit,w){const a=t.assessments[String(fit)][String(w)];return {...a,s:a.status,h:a.head,fl:a.floor,co:a.comfortable};}
 function facts(){const t=TRAILS[trail.value];
   document.getElementById('facts').innerHTML=
     `<div class="meta">${t.km} km &middot; ${t.days} day${t.days>1?'s':''} &middot; ${GRADE[t.grade]}</div>`+
@@ -739,7 +416,7 @@ function render(animate){
   }
   res.style.display='';
   const t={...TRAILS[trail.value],name:trail.value}, w=curWeeks();
-  const r=verdict(t,fit,w);
+  const r=lookupAssessment(t,fit,w);
   v.style.setProperty('--accent',ACC[r.s]);
   document.getElementById('emblem').innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">${ICON[r.s]}</svg>`;
   document.getElementById('vtitle').textContent=r.h;
@@ -760,17 +437,17 @@ function render(animate){
              : `You have ${fmtVal(w)}. <span>Comfortable is about ${co} weeks. Add weeks if you can.</span>`);
   }
   document.getElementById('plan').innerHTML=r.plan.map(p=>`<li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg><span>${p}</span></li>`).join('');
-  const md=t.diff>t.grade;
-  document.getElementById('inputs').innerHTML=`<span class="chip">${t.name}</span><span class="chip grade">${GRADE[t.grade]} grade</span>${md?`<span class="chip">${t.days} days</span>`:""}<span class="chip">${FITWORD[fit]}</span><span class="chip">${fmtVal(w)}</span>`;
+  const inputs=document.getElementById('inputs');
+  inputs.replaceChildren(...r.inputs.map(text=>{const span=document.createElement('span');span.className='chip';span.textContent=text;return span;}));
   const key=r.s+r.h;
   if(animate && key!==lastKey){v.classList.remove('flash');void v.offsetWidth;v.classList.add('flash');}
   lastKey=key;
 }
-function setPct(){weeks.style.setProperty('--pct',(weeks.value/30*100)+'%');
+function setPct(){weeks.style.setProperty('--pct',(weeks.value/51*100)+'%');
   const txt=fmtVal(curWeeks());document.getElementById('wval').textContent=txt; weeks.setAttribute('aria-valuetext',txt);}
 document.getElementById('ticks').innerHTML=
-  [[0,"1 wk","edgeL"],[7,"8 wks",""],[23,"24 wks","brk"],[30,"1 year","edgeR"]]
-  .map(a=>'<span class="t '+a[2]+'" style="left:'+(a[0]/30*100)+'%"><i></i>'+a[1]+'</span>').join('');
+  [[0,"1 wk","edgeL"],[7,"8 wks",""],[23,"24 wks","brk"],[51,"1 year","edgeR"]]
+  .map(a=>'<span class="t '+a[2]+'" style="left:'+(a[0]/51*100)+'%"><i></i>'+a[1]+'</span>').join('');
 trail.onchange=()=>{facts();render(true);};
 weeks.oninput=()=>{setPct();render(true);};
 document.querySelectorAll('#fit button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#fit button').forEach(x=>{x.classList.remove('on');x.setAttribute('aria-checked','false');});b.classList.add('on');b.setAttribute('aria-checked','true');fit=+b.dataset.v;render(true);});
@@ -926,6 +603,11 @@ _VICON = {
 }
 _CHK = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg>'
 
+def _quick_check_html():
+    """Embed the Python-compiled assessment lookup catalog."""
+    return QC_HTML.replace("__CATALOG__", json.dumps(compile_catalog(), separators=(",", ":")).replace("<", "\\u003c"))
+
+
 # ---------- Header ----------
 _hero = _hero_b64()
 components.html(HERO_TPL.replace("__HERO__", _hero), height=330)
@@ -934,114 +616,87 @@ tab_form, tab_chat = st.tabs(["Quick check", "Ask BeReady"])
 
 # ---------- Tab 1: Quick check (embedded HTML design, works client-side) ----------
 with tab_form:
-    components.html(QC_HTML, height=920, scrolling=False)
+    components.html(_quick_check_html(), height=920, scrolling=False)
 
-# ---------- Tab 2: chat ----------
+# ---------- Tab 2: deterministic chat ----------
 with tab_chat:
-    api_key = None
-    try:
-        api_key = st.secrets.get("GOOGLE_API_KEY")
-    except Exception:
-        api_key = None
-    api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+    AVATARS = {"user": "\U0001F97E", "assistant": "\U0001F3D4️"}
+    STARTERS = [
+        "Laugavegur in 6 weeks, I don't train",
+        "Trolltunga in 4 weeks, I train sometimes",
+        "Besseggen in 8 weeks, I train regularly",
+    ]
+    # Do not present a previous non-deterministic transcript as deterministic output.
+    if st.session_state.get("_chat_mode_version") != 2:
+        st.session_state.messages = []
+        st.session_state["_chat_mode_version"] = 2
+        st.session_state.pop("_chat_verdict", None)
+        st.session_state.pop("_needs_fitness", None)
+        st.session_state.pop("_fitness_query", None)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
+    show_reasoning = st.session_state.get("show_reasoning", False)
+    starter_q = None
+    if not st.session_state.messages:
+        with st.chat_message("assistant", avatar=AVATARS["assistant"]):
+            st.markdown("Hi, I'm BeReady. Tell me a trail, how you train, and how many "
+                        "weeks you have, and I'll give you an honest verdict.")
+        st.caption("Try asking")
+        for _i, _q in enumerate(STARTERS):
+            if st.button(_q, key=f"st_{_i}", use_container_width=True):
+                starter_q = _q
 
-    if not api_key:
-        st.info(
-            "This needs a Google Gemini API key. Add GOOGLE_API_KEY in the app settings "
-            "(Manage app, Secrets) to turn it on. The readiness form works without a key."
-        )
-    else:
-        os.environ["GOOGLE_API_KEY"] = api_key
-        AVATARS = {"user": "\U0001F97E", "assistant": "\U0001F3D4️"}
-        STARTERS = [
-            "Laugavegur in 6 weeks, I don't train",
-            "Trolltunga in 4 weeks, I train sometimes",
-            "Besseggen in 8 weeks, I train regularly",
-        ]
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-        # Reasoning mode is a subtle toggle at the bottom; read its saved value here.
-        use_team = st.session_state.get("show_reasoning", False)
-
-        # Empty state: a friendly opener plus a few conversation starters.
-        starter_q = None
-        if not st.session_state.messages:
-            with st.chat_message("assistant", avatar=AVATARS["assistant"]):
-                st.markdown("Hi, I'm BeReady. Tell me a trail, how you train, and how many "
-                            "weeks you have, and I'll give you an honest verdict.")
-            st.caption("Try asking")
-            for _i, _q in enumerate(STARTERS):
-                if st.button(_q, key=f"st_{_i}", use_container_width=True):
-                    starter_q = _q
-
-        # The conversation so far, newest last.
-        for m in st.session_state.messages:
-            box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
-            v = m.get("verdict")
-            if v:
-                acc = {"ready": "#42583f", "cond": "#5f7d3f", "hard": "#b07d1f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
-                inputs_html = "".join(f'<span class="chip{" grade" if str(x).endswith("grade") else ""}">{x}</span>' for x in v.get("inputs", []))
-                plan_html = "".join(f'<li>{_CHK}<span>{s}</span></li>' for s in v["plan"])
-                card = (VERDICT_CARD
-                        .replace("__ACCENT__", acc).replace("__ICON__", _VICON.get(v["status"], ""))
-                        .replace("__HEAD__", v["head"]).replace("__WHY__", v.get("why", ""))
-                        .replace("__INPUTS__", inputs_html).replace("__PLAN__", plan_html)
-                        .replace("__STATUS__", v["status"]).replace("__WK__", str(v.get("weeks", 0)))
-                        .replace("__FL__", str(v.get("floor", 0))).replace("__CO__", str(v.get("comfort", 0))))
-                with box:
-                    components.html(card, height=540, scrolling=False)
-                if m.get("show_text"):
-                    box.markdown(m["content"])
-            else:
+    for m in st.session_state.messages:
+        box = st.chat_message(m["role"], avatar=AVATARS[m["role"]])
+        v = m.get("verdict")
+        if v:
+            acc = {"ready": "#42583f", "cond": "#5f7d3f", "hard": "#b07d1f", "toosoon": "#3f7286"}.get(v["status"], "#6b7280")
+            inputs_html = "".join(f'<span class="chip{" grade" if str(x).endswith("grade") else ""}">{x}</span>' for x in v.get("inputs", []))
+            plan_html = "".join(f'<li>{_CHK}<span>{s}</span></li>' for s in v["plan"])
+            card = (VERDICT_CARD
+                    .replace("__ACCENT__", acc).replace("__ICON__", _VICON.get(v["status"], ""))
+                    .replace("__HEAD__", v["head"]).replace("__WHY__", v.get("why", ""))
+                    .replace("__INPUTS__", inputs_html).replace("__PLAN__", plan_html)
+                    .replace("__STATUS__", v["status"]).replace("__WK__", str(v.get("weeks", 0)))
+                    .replace("__FL__", str(v.get("floor", 0))).replace("__CO__", str(v.get("comfort", 0))))
+            with box:
+                components.html(card, height=540, scrolling=False)
+            if show_reasoning:
                 box.markdown(m["content"])
+        else:
+            box.markdown(m["content"])
 
-        # If the last answer asked for a training level, offer it inline in the thread.
-        followup_q = None
-        _msgs = st.session_state.messages
-        if _msgs and _msgs[-1].get("needs_fitness"):
-            base = _msgs[-1]["needs_fitness"]
-            st.caption("Your training level:")
-            fc1, fc2, fc3 = st.columns(3)
-            if fc1.button("I don't train", key="fq1", use_container_width=True):
-                followup_q = f"{base} I don't train."
-            if fc2.button("Sometimes active", key="fq2", use_container_width=True):
-                followup_q = f"{base} I sometimes train."
-            if fc3.button("I train regularly", key="fq3", use_container_width=True):
-                followup_q = f"{base} I train regularly."
+    followup_q = None
+    _msgs = st.session_state.messages
+    if _msgs and _msgs[-1].get("needs_fitness"):
+        base = _msgs[-1]["needs_fitness"]
+        st.caption("Your training level:")
+        fc1, fc2, fc3 = st.columns(3)
+        if fc1.button("I don't train", key="fq1", use_container_width=True):
+            followup_q = f"{base} I don't train."
+        if fc2.button("Sometimes active", key="fq2", use_container_width=True):
+            followup_q = f"{base} I sometimes train."
+        if fc3.button("I train regularly", key="fq3", use_container_width=True):
+            followup_q = f"{base} I train regularly."
 
-        # Pinned input at the bottom, like a real chat.
-        typed = st.chat_input("Ask about a trail in Iceland or Norway...")
-        query = (typed.strip() if typed and typed.strip() else None) or starter_q or followup_q
-        if query:
-            st.session_state.messages.append({"role": "user", "content": query})
-            st.session_state.pop("_chat_verdict", None)
-            st.session_state.pop("_needs_fitness", None)
-            st.session_state.pop("_fitness_query", None)
-            spinner_text = "Reasoning through it..." if use_team else "Thinking..."
-            with st.spinner(spinner_text):
-                try:
-                    runner = get_team() if use_team else get_agent()
-                    resp = runner.run(query)
-                    answer = getattr(resp, "content", None) or str(resp)
-                except Exception as e:
-                    answer = ("Something went wrong reaching the model. This is usually the free-tier "
-                              f"limit, try again in a moment. ({type(e).__name__})")
-            msg = {"role": "assistant", "content": answer}
-            verdict = st.session_state.pop("_chat_verdict", None)
-            if verdict:
-                msg["verdict"] = verdict
-                msg["show_text"] = bool(use_team)
-            needs_fit = st.session_state.pop("_needs_fitness", False)
-            fit_query = st.session_state.pop("_fitness_query", None)
-            if needs_fit and fit_query:
-                msg["needs_fitness"] = fit_query
-            st.session_state.messages.append(msg)
-            st.rerun()
+    typed = st.chat_input("Ask about a trail in Iceland or Norway...")
+    query = (typed.strip() if typed and typed.strip() else None) or starter_q or followup_q
+    if query:
+        st.session_state.messages.append({"role": "user", "content": query})
+        answer = readiness_from_text(query)
+        msg = {"role": "assistant", "content": answer}
+        verdict = st.session_state.pop("_chat_verdict", None)
+        if verdict:
+            msg["verdict"] = verdict
+        needs_fit = st.session_state.pop("_needs_fitness", False)
+        fit_query = st.session_state.pop("_fitness_query", None)
+        if needs_fit and fit_query:
+            msg["needs_fitness"] = fit_query
+        st.session_state.messages.append(msg)
+        st.rerun()
 
-        # A subtle "how it works" toggle, kept out of the way at the bottom.
-        with st.expander("How BeReady answers"):
-            st.caption("Same verdict either way. Turn this on to see the reasoning behind "
-                       "the answer, which takes a bit longer.")
-            st.toggle("Show the reasoning", key="show_reasoning")
+    with st.expander("How BeReady answers"):
+        st.caption("Every answer is computed from the same fixed catalog and rules. "
+                   "Showing the canonical assessment text does not change or delay the verdict.")
+        st.toggle("Show the reasoning", key="show_reasoning")
