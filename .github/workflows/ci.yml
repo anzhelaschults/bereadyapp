@@ -1,0 +1,65 @@
+name: Commercial quality gates
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feature/**']
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.10'
+      - run: uv sync --frozen --extra test --python 3.12
+      - run: uv run pytest
+      - run: uv run python -m beready.catalog --check
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.10'
+      - run: uv sync --frozen --extra test --python 3.12
+      - run: npm ci
+        working-directory: web
+      - run: npm run lint && npm run typecheck && npm test && npm run build
+        working-directory: web
+      - run: npm audit --audit-level=high
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: E2E_PRODUCTION=true npm run e2e
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: |
+            docs/screenshots
+            web/playwright-report
+            web/test-results
+
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start
+      - run: supabase test db
+      - if: always()
+        run: supabase stop --no-backup
