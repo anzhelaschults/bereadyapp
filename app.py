@@ -240,9 +240,10 @@ HERO_TPL = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="view
   .plan{list-style:none; padding:0; margin:16px 0 0}
   .plan li{display:flex; gap:10px; align-items:flex-start; padding:7px 0; font-size:14.5px; color:var(--ink)}
   .plan svg{flex:none; margin-top:2px; color:var(--accent)}
-  .foot{display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:15px; border-top:1px solid var(--line); flex-wrap:wrap}
-  .badge{font-size:12px; font-weight:600; color:var(--moss); background:#eef2e8; border:1px solid #dfe6d6; border-radius:999px; padding:5px 11px; display:inline-flex; align-items:center; gap:6px}
-  .disc{font-size:12.5px; color:var(--muted); margin:0}
+  .foot{margin-top:18px; padding-top:15px; border-top:1px solid var(--line)}
+  .trust{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--moss)}
+  .trust svg{color:var(--moss-bright)}
+  .disc{display:block; font-size:12px; color:var(--muted); margin:6px 0 0}
 
   .note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 4px 0}
   .ask-lead{margin:0 0 14px;font-size:14.5px;color:var(--ink-soft)}
@@ -338,8 +339,10 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   .computed{margin:18px 0 4px;padding-top:15px;border-top:1px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
   .inputs{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
   .inputs .chip{background:#fff;border-color:var(--line)} .inputs .chip.grade{color:var(--moss);background:#eef2e8;border-color:#dbe6d0}
-  .disc{font-size:12px;color:var(--muted);margin:12px 0 0}
-  .foot{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;font-weight:600;color:var(--moss)}
+  .disc{display:block;font-size:12px;color:var(--muted);margin:6px 0 0}
+  .foot{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+  .trust{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--moss)}
+  .trust svg{color:var(--moss-bright)}
 </style></head><body><div class="wrap">
   <div class="card">
     <div class="field">
@@ -381,9 +384,8 @@ QC_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
       <p class="computed">Computed from</p>
       <div class="inputs" id="inputs"></div>
       <ul class="plan" id="plan"></ul>
-      <p class="disc">Fitness readiness only, not a medical or mountain-safety clearance.</p>
       </div>
-      <div class="foot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</div>
+      <div class="foot"><span class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</span><span class="disc">Fitness readiness only, not a medical or mountain-safety clearance.</span></div>
     </div>
   </div>
 </div>
@@ -589,8 +591,8 @@ VERDICT_CARD = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="
     <div class="inputs">__INPUTS__</div>
     <ul class="plan">__PLAN__</ul>
     <div class="foot">
-      <span class="badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</span>
-      <p class="disc">Approximate fitness assessment, not a medical opinion.</p>
+      <span class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="M20 6L9 17l-5-5"/></svg> Computed, not guessed</span>
+      <span class="disc">Approximate fitness assessment, not a medical opinion.</span>
     </div>
   </div>
 </div></div><script>(function(){var S="__STATUS__",W=__WK__,FL=__FL__,CO=__CO__;var rw=document.getElementById('rw');if(!rw)return;if(S==="ready"||!CO){rw.style.display="none";return;}var end=Math.max(CO+6,W);function pct(x){return Math.max(0,Math.min(100,((x-1)/(end-1))*100));}document.getElementById('z1').style.width=pct(FL)+"%";document.getElementById('z2').style.width=(pct(CO)-pct(FL))+"%";document.getElementById('z3').style.width=(100-pct(CO))+"%";document.getElementById('you').style.left=pct(W)+"%";document.getElementById('scale').innerHTML='<span class="mk" style="left:'+pct(FL)+'%">'+FL+' wk</span><span class="mk" style="left:'+pct(CO)+'%">'+CO+' wk, comfortable</span>';var n=document.getElementById('rnote');n.innerHTML=W>=CO?'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. You are set.</span>':(W<FL?'You have '+W+' weeks. <span>This trip needs about '+CO+' weeks. Give it more time.</span>':'You have '+W+' weeks. <span>Comfortable is about '+CO+' weeks. Add weeks if you can.</span>');})();</script><script>(function(){function rz(){var el=document.querySelector(".wrap");var h=Math.ceil(el?el.getBoundingClientRect().bottom:document.documentElement.scrollHeight)+12;window.parent.postMessage({isStreamlitMessage:true,type:"streamlit:setFrameHeight",height:h},"*");}window.addEventListener('load',rz);setInterval(rz,400);try{new ResizeObserver(rz).observe(document.body);}catch(e){}})();</script></body></html>'''
@@ -616,7 +618,7 @@ tab_form, tab_chat = st.tabs(["Quick check", "Ask BeReady"])
 
 # ---------- Tab 1: Quick check (embedded HTML design, works client-side) ----------
 with tab_form:
-    components.html(_quick_check_html(), height=920, scrolling=False)
+    components.html(_quick_check_html(), height=1000, scrolling=False)
 
 # ---------- Tab 2: deterministic chat ----------
 with tab_chat:
